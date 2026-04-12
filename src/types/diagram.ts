@@ -73,6 +73,15 @@ export interface Diagram {
     defaultCenter: [number, number]
     defaultZoom: number
     tileProvider: 'osm' | 'google-streets' | 'google-satellite'
+    showAsBackground: boolean
+    backgroundOpacity: number
+    anchorPoint?: {
+      canvasX: number
+      canvasY: number
+      lat: number
+      lng: number
+    }
+    pixelsPerMeter?: number
   }
   createdAt: string
   updatedAt: string

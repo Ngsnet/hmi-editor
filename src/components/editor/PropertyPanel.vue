@@ -18,8 +18,22 @@ function updateProp(key: string, value: unknown) {
     <div class="panel-header">Vlastnosti</div>
 
     <!-- No selection -->
-    <div v-if="selected.length === 0" class="panel-empty">
-      No element selected
+    <div v-if="selected.length === 0" class="panel-body">
+      <template v-if="diagramStore.diagram.mapSettings?.showAsBackground">
+        <div class="prop-section">
+          <div class="section-title">Mapový podklad</div>
+          <p class="hint">Aktivní. Použijte tlačítko "Změnit" v toolbaru pro úpravu výřezu.</p>
+          <div class="prop-row" style="margin-top: 8px">
+            <label>px/m</label>
+            <input type="number" step="0.1" min="0.01"
+              :value="diagramStore.diagram.mapSettings?.pixelsPerMeter ?? 1"
+              @change="diagramStore.diagram.mapSettings = { ...diagramStore.diagram.mapSettings!, pixelsPerMeter: Number(($event.target as HTMLInputElement).value) }" />
+          </div>
+        </div>
+      </template>
+      <div v-else class="panel-empty">
+        Žádný element nevybrán
+      </div>
     </div>
 
     <!-- Single element -->

@@ -13,8 +13,10 @@ import GridLayer from './GridLayer.vue'
 import CanvasLayer from './CanvasLayer.vue'
 import DrawingPreview from './DrawingPreview.vue'
 import SelectionOverlay from './SelectionOverlay.vue'
+import MapBackground from './MapBackground.vue'
 
 const svgRef = ref<SVGSVGElement | null>(null)
+const mapBgRef = ref<InstanceType<typeof MapBackground> | null>(null)
 const viewportStore = useViewportStore()
 const diagramStore = useDiagramStore()
 const toolStore = useToolStore()
@@ -124,6 +126,19 @@ function onCanvasDblClick(e: MouseEvent) {
   }
 }
 
+function onCanvasWheel(e: WheelEvent) {
+  e.preventDefault()
+  if (showMapBackground.value) {
+    // Forward zoom to Leaflet
+    const rect = svgRef.value?.getBoundingClientRect()
+    if (rect && mapBgRef.value) {
+      mapBgRef.value.zoomAt(e.clientX - rect.left, e.clientY - rect.top, e.deltaY)
+    }
+    return
+  }
+  onWheel(e)
+}
+
 function onContextMenu(e: MouseEvent) {
   e.preventDefault()
   // Right-click cancels drawing / switches to select (same as Escape)
@@ -140,10 +155,25 @@ function onContextMenu(e: MouseEvent) {
 
 // --- Event routing ---
 
+const mapPanning = ref(false)
+const mapPanLast = reactive({ x: 0, y: 0 })
+
 function onCanvasPointerDown(e: PointerEvent) {
-  // Viewport pan (middle button or space+drag)
-  onViewportPointerDown(e)
-  if (e.button === 1 || (e.button === 0 && spacePressed.value)) return
+  if (showMapBackground.value) {
+    // Middle button or space+drag → pan map
+    if (e.button === 1 || (e.button === 0 && spacePressed.value)) {
+      mapPanning.value = true
+      mapPanLast.x = e.clientX
+      mapPanLast.y = e.clientY
+      ;(e.currentTarget as Element)?.setPointerCapture(e.pointerId)
+      e.preventDefault()
+      return
+    }
+    if (e.button !== 0) return
+  } else {
+    onViewportPointerDown(e)
+    if (e.button === 1 || (e.button === 0 && spacePressed.value)) return
+  }
 
   if (toolStore.activeTool === 'select') {
     selectTool.onPointerDown(e)
@@ -155,7 +185,15 @@ function onCanvasPointerDown(e: PointerEvent) {
 }
 
 function onCanvasPointerMove(e: PointerEvent) {
-  onViewportPointerMove(e)
+  if (mapPanning.value) {
+    const dx = e.clientX - mapPanLast.x
+    const dy = e.clientY - mapPanLast.y
+    mapPanLast.x = e.clientX
+    mapPanLast.y = e.clientY
+    mapBgRef.value?.panBy(dx, dy)
+    return
+  }
+  if (!showMapBackground.value) onViewportPointerMove(e)
 
   if (isVertexDrag.value) {
     handleVertexDragMove(e)
@@ -187,7 +225,12 @@ function onCanvasPointerMove(e: PointerEvent) {
 }
 
 function onCanvasPointerUp(e: PointerEvent) {
-  onViewportPointerUp(e)
+  if (mapPanning.value) {
+    mapPanning.value = false
+    ;(e.currentTarget as Element)?.releasePointerCapture(e.pointerId)
+    return
+  }
+  if (!showMapBackground.value) onViewportPointerUp(e)
 
   if (isVertexDrag.value) {
     handleVertexDragUp()
@@ -594,6 +637,7 @@ function handleVertexDragUp() {
 const gridSize = computed(() => diagramStore.diagram.gridSize)
 const gridVisible = computed(() => diagramStore.diagram.gridVisible)
 const backgroundColor = computed(() => diagramStore.diagram.backgroundColor)
+const showMapBackground = computed(() => diagramStore.diagram.mapSettings?.showAsBackground ?? false)
 
 // Add demo elements if diagram is empty
 onMounted(() => {
@@ -628,11 +672,15 @@ onMounted(() => {
 
 <template>
   <div class="canvas-wrapper">
+  <!-- Map background (behind SVG) -->
+  <MapBackground v-if="showMapBackground" ref="mapBgRef" :svg-el="svgRef" />
+
   <svg
     ref="svgRef"
     class="canvas-view"
+    :class="{ 'transparent-bg': showMapBackground }"
     :style="{ cursor: canvasCursor }"
-    @wheel.prevent="onWheel"
+    @wheel="onCanvasWheel"
     @pointerdown="onCanvasPointerDown"
     @pointermove="onCanvasPointerMove"
     @pointerup="onCanvasPointerUp"
@@ -642,8 +690,9 @@ onMounted(() => {
   >
     <!-- Everything inside this <g> zooms together -->
     <g :transform="viewportStore.transformString">
-      <!-- Background fill -->
+      <!-- Background fill (hidden when map is active) -->
       <rect
+        v-if="!showMapBackground"
         :x="-50000" :y="-50000"
         width="100000" height="100000"
         :fill="backgroundColor"
@@ -735,6 +784,12 @@ onMounted(() => {
   display: block;
   background: var(--bg-canvas);
   outline: none;
+  position: relative;
+  z-index: 1;
+}
+
+.canvas-view.transparent-bg {
+  background: transparent;
 }
 
 .status-bar {

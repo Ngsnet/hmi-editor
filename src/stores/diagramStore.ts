@@ -27,6 +27,10 @@ function defaultDiagram(): Diagram {
       defaultCenter: [50.0755, 14.4378], // Praha
       defaultZoom: 13,
       tileProvider: 'osm',
+      showAsBackground: false,
+      backgroundOpacity: 0.5,
+      anchorPoint: { canvasX: 960, canvasY: 540, lat: 50.0755, lng: 14.4378 },
+      pixelsPerMeter: 1,
     },
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),

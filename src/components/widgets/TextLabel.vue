@@ -28,18 +28,34 @@ const selectionPadding = computed(() => 4 / viewportStore.viewport.scale)
       :fill="element.style.fill === 'none' ? 'transparent' : element.style.fill"
       :opacity="element.style.opacity"
     />
-    <text
-      :x="element.x + element.width / 2"
-      :y="element.y + element.height / 2"
-      :font-size="fontSize"
-      :font-family="fontFamily"
-      :fill="textColor"
-      :opacity="element.style.opacity"
-      text-anchor="middle"
-      dominant-baseline="central"
+    <!-- foreignObject for word-wrap -->
+    <foreignObject
+      :x="element.x"
+      :y="element.y"
+      :width="element.width"
+      :height="element.height"
     >
-      {{ element.label || 'Text' }}
-    </text>
+      <div
+        xmlns="http://www.w3.org/1999/xhtml"
+        :style="{
+          width: element.width + 'px',
+          height: element.height + 'px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          textAlign: 'center',
+          fontSize: fontSize + 'px',
+          fontFamily: fontFamily,
+          color: textColor,
+          opacity: element.style.opacity,
+          overflow: 'hidden',
+          wordBreak: 'break-word',
+          lineHeight: '1.3',
+          padding: '2px 4px',
+          boxSizing: 'border-box',
+        }"
+      >{{ element.label || 'Text' }}</div>
+    </foreignObject>
     <rect
       v-if="selected"
       :x="element.x - selectionPadding"

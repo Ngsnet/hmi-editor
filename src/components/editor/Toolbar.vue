@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch as vueWatch, nextTick } from 'vue'
 import { useToolStore, type ToolType } from '@/stores/toolStore'
 import { useViewportStore } from '@/stores/viewportStore'
 import { useHistoryStore } from '@/stores/historyStore'
@@ -117,6 +117,101 @@ function importJSON() {
 }
 
 const showHelp = ref(false)
+const showMapPicker = ref(false)
+const pickerMapEl = ref<HTMLDivElement | null>(null)
+let pickerMap: any = null
+
+function getTileInfo(provider: string) {
+  switch (provider) {
+    case 'google-streets':
+      return { url: 'https://mt1.google.com/vt/lyrs=r&x={x}&y={y}&z={z}', attribution: '', maxNativeZoom: 21 }
+    case 'google-satellite':
+      return { url: 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', attribution: '', maxNativeZoom: 21 }
+    default:
+      return {
+        url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        attribution: '&copy; OpenStreetMap',
+        maxNativeZoom: 19,
+      }
+  }
+}
+
+let pickerTileLayer: any = null
+
+function pickerUpdateTiles() {
+  if (!pickerMap) return
+  const provider = diagramStore.diagram.mapSettings?.tileProvider ?? 'osm'
+  const info = getTileInfo(provider)
+  if (pickerTileLayer) pickerMap.removeLayer(pickerTileLayer)
+  const L = (window as any).L
+  pickerTileLayer = L.tileLayer(info.url, { attribution: info.attribution, maxNativeZoom: info.maxNativeZoom, maxZoom: 22 }).addTo(pickerMap)
+}
+
+// Watch for picker modal opening → init Leaflet
+vueWatch(showMapPicker, async (show) => {
+  if (show) {
+    await nextTick()
+    await nextTick() // ensure DOM is ready
+    if (!pickerMapEl.value) return
+    const L = await import('leaflet')
+    const settings = diagramStore.diagram.mapSettings
+    const center = settings?.anchorPoint
+      ? [settings.anchorPoint.lat, settings.anchorPoint.lng] as [number, number]
+      : settings?.defaultCenter ?? [50.0755, 14.4378] as [number, number]
+    const zoom = settings?.defaultZoom ?? 13
+
+    pickerMap = L.map(pickerMapEl.value, { center, zoom })
+    const info = getTileInfo(settings?.tileProvider ?? 'osm')
+    pickerTileLayer = L.tileLayer(info.url, { attribution: info.attribution, maxNativeZoom: info.maxNativeZoom, maxZoom: 22 }).addTo(pickerMap)
+    setTimeout(() => pickerMap?.invalidateSize(), 100)
+  } else {
+    if (pickerMap) {
+      pickerMap.remove()
+      pickerMap = null
+    }
+  }
+})
+
+function applyMapPicker() {
+  if (!pickerMap) return
+  const center = pickerMap.getCenter()
+  const zoom = pickerMap.getZoom()
+  const canvasCenterX = diagramStore.diagram.width / 2
+  const canvasCenterY = diagramStore.diagram.height / 2
+
+  // Auto-calculate pixelsPerMeter so that at SVG scale=1, the background matches the picker view
+  // metersPerPixel = 156543.03 * cos(lat) / 2^zoom
+  // ppm = 1 / metersPerPixel (so that scale=1 at this zoom level)
+  const cosLat = Math.cos(center.lat * Math.PI / 180)
+  const metersPerPixel = 156543.03 * cosLat / Math.pow(2, zoom)
+  const pixelsPerMeter = 1 / metersPerPixel
+
+  diagramStore.diagram.mapSettings = {
+    ...diagramStore.diagram.mapSettings!,
+    showAsBackground: true,
+    anchorPoint: {
+      canvasX: canvasCenterX,
+      canvasY: canvasCenterY,
+      lat: center.lat,
+      lng: center.lng,
+    },
+    defaultCenter: [center.lat, center.lng],
+    defaultZoom: zoom,
+    pixelsPerMeter,
+  }
+
+  // Reset SVG viewport to scale=1 centered on anchor
+  const vp = viewportStore.viewport
+  const svgEl = document.querySelector('.canvas-view')
+  const svgRect = svgEl?.getBoundingClientRect()
+  if (svgRect) {
+    vp.scale = 1
+    vp.x = svgRect.width / 2 - canvasCenterX
+    vp.y = svgRect.height / 2 - canvasCenterY
+  }
+
+  showMapPicker.value = false
+}
 
 const props = defineProps<{
   mode: 'diagram' | 'map'
@@ -244,6 +339,39 @@ const mapWidgetTools: Array<{ id: string; label: string; icon: string }> = [
         />
         <span>Zachytávání</span>
       </label>
+
+      <div class="separator" />
+
+      <!-- Map background controls -->
+      <button
+        v-if="!diagramStore.diagram.mapSettings?.showAsBackground"
+        class="tool-btn text-btn"
+        title="Vybrat mapový podklad"
+        @click="showMapPicker = true"
+      >Podklad</button>
+
+      <template v-else>
+        <select
+          class="tile-select"
+          :value="diagramStore.diagram.mapSettings?.tileProvider ?? 'osm'"
+          @change="diagramStore.diagram.mapSettings = { ...diagramStore.diagram.mapSettings!, tileProvider: ($event.target as HTMLSelectElement).value as any }"
+        >
+          <option value="osm">OSM</option>
+          <option value="google-streets">Google</option>
+          <option value="google-satellite">Satelit</option>
+        </select>
+        <label class="style-input" title="Průhlednost mapy">
+          <input
+            type="range"
+            :value="diagramStore.diagram.mapSettings?.backgroundOpacity ?? 0.5"
+            min="0.1" max="1" step="0.05"
+            class="opacity-slider"
+            @input="diagramStore.diagram.mapSettings = { ...diagramStore.diagram.mapSettings!, backgroundOpacity: Number(($event.target as HTMLInputElement).value) }"
+          />
+        </label>
+        <button class="tool-btn text-btn" title="Změnit výřez mapy" @click="showMapPicker = true">Změnit</button>
+        <button class="tool-btn text-btn" title="Skrýt mapový podklad" @click="diagramStore.diagram.mapSettings = { ...diagramStore.diagram.mapSettings!, showAsBackground: false }">✕</button>
+      </template>
     </template>
 
     <div class="spacer" />
@@ -326,6 +454,41 @@ const mapWidgetTools: Array<{ id: string; label: string; icon: string }> = [
 
           <h3>Komponenty</h3>
           <p>Use the Widgets panel (right) to add Gauge, LED, Value, Text, or Image elements. Drag an image file onto the canvas to insert it.</p>
+        </div>
+      </div>
+    </div>
+    <!-- Map picker modal -->
+    <div v-if="showMapPicker" class="help-overlay" @click.self="showMapPicker = false">
+      <div class="map-picker-panel">
+        <div class="help-header">
+          <span>Vyberte výřez mapy</span>
+          <button class="help-close" @click="showMapPicker = false">✕</button>
+        </div>
+        <div class="map-picker-toolbar">
+          <select
+            class="tile-select"
+            :value="diagramStore.diagram.mapSettings?.tileProvider ?? 'osm'"
+            @change="diagramStore.diagram.mapSettings = { ...diagramStore.diagram.mapSettings!, tileProvider: ($event.target as HTMLSelectElement).value as any }; pickerUpdateTiles()"
+          >
+            <option value="osm">OpenStreetMap</option>
+            <option value="google-streets">Google Streets</option>
+            <option value="google-satellite">Google Satellite</option>
+          </select>
+          <label class="style-input">
+            <span style="color: var(--text-muted); font-size: 12px">Měřítko px/m:</span>
+            <input
+              type="number"
+              class="num-input"
+              step="0.1" min="0.01"
+              :value="diagramStore.diagram.mapSettings?.pixelsPerMeter ?? 1"
+              @change="diagramStore.diagram.mapSettings = { ...diagramStore.diagram.mapSettings!, pixelsPerMeter: Number(($event.target as HTMLInputElement).value) }"
+            />
+          </label>
+        </div>
+        <div ref="pickerMapEl" class="map-picker-map" />
+        <div class="map-picker-footer">
+          <span class="map-picker-info">Navigujte na požadované místo, pak klikněte "Použít"</span>
+          <button class="tool-btn text-btn map-picker-apply" @click="applyMapPicker">Použít jako podklad</button>
         </div>
       </div>
     </div>
@@ -490,6 +653,50 @@ const mapWidgetTools: Array<{ id: string; label: string; icon: string }> = [
 .help-btn {
   font-weight: bold;
   font-size: 16px;
+}
+
+/* Map picker modal */
+.map-picker-panel {
+  background: var(--help-bg);
+  border: 1px solid var(--input-border);
+  border-radius: 8px;
+  width: 700px;
+  height: 520px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.map-picker-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.map-picker-map {
+  flex: 1;
+}
+
+.map-picker-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+.map-picker-info {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.map-picker-apply {
+  background: var(--accent) !important;
+  color: white !important;
+  padding: 6px 16px !important;
+  font-weight: 600 !important;
 }
 
 .map-tool-btn {

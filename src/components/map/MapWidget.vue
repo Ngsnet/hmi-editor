@@ -17,6 +17,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   click: []
+  dragstart: [e: PointerEvent]
 }>()
 
 const widgetComponent = computed(() => {
@@ -45,8 +46,8 @@ const transform = computed(() => {
   <g
     v-if="position && widgetComponent"
     :transform="transform"
-    style="pointer-events: all; cursor: pointer"
-    @pointerdown.stop="emit('click')"
+    style="pointer-events: all; cursor: move"
+    @pointerdown.stop="emit('dragstart', $event)"
   >
     <!-- White background card -->
     <rect

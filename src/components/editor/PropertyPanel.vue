@@ -119,13 +119,6 @@ function updateProp(key: string, value: unknown) {
             @change="updateProp('geoPosition', { ...single.geoPosition, lng: Number(($event.target as HTMLInputElement).value) })" />
         </div>
         <div class="prop-row">
-          <label>
-            <input type="checkbox" :checked="single.geoPosition.locked"
-              @change="updateProp('geoPosition', { ...single.geoPosition, locked: ($event.target as HTMLInputElement).checked })" />
-            Uzamknout v diagramu
-          </label>
-        </div>
-        <div class="prop-row">
           <button class="remove-btn" @click="updateProp('geoPosition', undefined)">Odebrat GPS</button>
         </div>
       </div>

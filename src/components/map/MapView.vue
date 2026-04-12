@@ -14,6 +14,7 @@ const historyStore = useHistoryStore()
 const mapSync = useMapSync()
 
 const mapEl = ref<HTMLDivElement | null>(null)
+const mapRef = ref<any>(null)
 let map: L.Map | null = null
 let tileLayer: L.TileLayer | null = null
 
@@ -29,16 +30,17 @@ const mapWidgetTools = [
   { id: 'toggle', label: 'Toggle', icon: '◑' },
 ]
 
-function getTileUrl(provider: string): { url: string; attribution: string } {
+function getTileUrl(provider: string): { url: string; attribution: string; maxNativeZoom: number } {
   switch (provider) {
     case 'google-streets':
-      return { url: 'https://mt1.google.com/vt/lyrs=r&x={x}&y={y}&z={z}', attribution: '' }
+      return { url: 'https://mt1.google.com/vt/lyrs=r&x={x}&y={y}&z={z}', attribution: '', maxNativeZoom: 21 }
     case 'google-satellite':
-      return { url: 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', attribution: '' }
+      return { url: 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', attribution: '', maxNativeZoom: 21 }
     default:
       return {
         url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        maxNativeZoom: 19,
       }
   }
 }
@@ -46,11 +48,11 @@ function getTileUrl(provider: string): { url: string; attribution: string } {
 function updateTileLayer() {
   if (!map) return
   const provider = diagramStore.diagram.mapSettings?.tileProvider ?? 'osm'
-  const { url, attribution } = getTileUrl(provider)
+  const tileInfo = getTileUrl(provider)
   if (tileLayer) {
     map.removeLayer(tileLayer)
   }
-  tileLayer = L.tileLayer(url, { attribution, maxZoom: 20 }).addTo(map)
+  tileLayer = L.tileLayer(tileInfo.url, { attribution: tileInfo.attribution, maxNativeZoom: tileInfo.maxNativeZoom, maxZoom: 22 }).addTo(map)
 }
 
 onMounted(() => {
@@ -66,6 +68,7 @@ onMounted(() => {
     zoomControl: true,
   })
 
+  mapRef.value = map
   updateTileLayer()
   mapSync.setMap(map)
 
@@ -165,7 +168,7 @@ onUnmounted(() => {
 <template>
   <div class="map-container">
     <div ref="mapEl" class="map-element" />
-    <MapWidgetOverlay :map-sync="mapSync" />
+    <MapWidgetOverlay :map-sync="mapSync" :map="mapRef" />
 
     <!-- Floating widget palette -->
     <div class="map-palette">

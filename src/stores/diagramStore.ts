@@ -20,7 +20,7 @@ function defaultDiagram(): Diagram {
     gridVisible: true,
     snapToGrid: true,
     layers: [
-      { id: layerId, name: 'Vrstva 1', visible: true, locked: false, order: 0 },
+      { id: layerId, name: 'Vrstva 1', visible: true, locked: false, order: 0, opacity: 1 },
     ],
     elements: [],
     mapSettings: {
@@ -158,7 +158,7 @@ export const useDiagramStore = defineStore('diagram', () => {
     const id = generateId()
     const maxOrder = diagram.value.layers.reduce((max, l) => Math.max(max, l.order), -1)
     diagram.value.layers.push({
-      id, name, visible: true, locked: false, order: maxOrder + 1,
+      id, name, visible: true, locked: false, order: maxOrder + 1, opacity: 1,
     })
     activeLayerId.value = id
     return id

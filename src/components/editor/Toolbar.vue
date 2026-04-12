@@ -344,13 +344,21 @@ const mapWidgetTools: Array<{ id: string; label: string; icon: string }> = [
 
       <!-- Map background controls -->
       <button
-        v-if="!diagramStore.diagram.mapSettings?.showAsBackground"
         class="tool-btn text-btn"
         title="Vybrat mapový podklad"
         @click="showMapPicker = true"
-      >Podklad</button>
+      >{{ diagramStore.diagram.mapSettings?.anchorPoint ? 'Změnit' : 'Podklad' }}</button>
 
-      <template v-else>
+      <!-- Toggle map on/off (only if configured) -->
+      <button
+        v-if="diagramStore.diagram.mapSettings?.anchorPoint"
+        class="tool-btn text-btn"
+        :class="{ active: diagramStore.diagram.mapSettings?.showAsBackground }"
+        :title="diagramStore.diagram.mapSettings?.showAsBackground ? 'Skrýt mapu' : 'Zobrazit mapu'"
+        @click="diagramStore.diagram.mapSettings = { ...diagramStore.diagram.mapSettings!, showAsBackground: !diagramStore.diagram.mapSettings?.showAsBackground }"
+      >🗺</button>
+
+      <template v-if="diagramStore.diagram.mapSettings?.showAsBackground">
         <select
           class="tile-select"
           :value="diagramStore.diagram.mapSettings?.tileProvider ?? 'osm'"
@@ -369,8 +377,6 @@ const mapWidgetTools: Array<{ id: string; label: string; icon: string }> = [
             @input="diagramStore.diagram.mapSettings = { ...diagramStore.diagram.mapSettings!, backgroundOpacity: Number(($event.target as HTMLInputElement).value) }"
           />
         </label>
-        <button class="tool-btn text-btn" title="Změnit výřez mapy" @click="showMapPicker = true">Změnit</button>
-        <button class="tool-btn text-btn" title="Skrýt mapový podklad" @click="diagramStore.diagram.mapSettings = { ...diagramStore.diagram.mapSettings!, showAsBackground: false }">✕</button>
       </template>
     </template>
 

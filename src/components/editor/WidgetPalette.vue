@@ -172,11 +172,64 @@ function onImageUpload() {
   }
   input.click()
 }
+
+function onBackgroundUpload() {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = 'image/*'
+  input.onchange = async () => {
+    const file = input.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      const data = reader.result as string
+      const dw = diagramStore.diagram.width
+      const dh = diagramStore.diagram.height
+
+      // Create or find a "Podklad" layer at the bottom
+      let bgLayer = diagramStore.diagram.layers.find(l => l.name === 'Podklad')
+      if (!bgLayer) {
+        const minOrder = Math.min(...diagramStore.diagram.layers.map(l => l.order))
+        const bgLayerId = diagramStore.addLayer('Podklad')
+        bgLayer = diagramStore.diagram.layers.find(l => l.id === bgLayerId)!
+        bgLayer.order = minOrder - 1
+      }
+
+      const cmd = new AddElementCommand({
+        type: 'image',
+        x: 0,
+        y: 0,
+        width: dw,
+        height: dh,
+        rotation: 0,
+        layerId: bgLayer.id,
+        locked: true,
+        visible: true,
+        imageData: data,
+        imageMimeType: file.type,
+        style: { fill: 'none', stroke: 'none', strokeWidth: 0, opacity: 1 },
+      })
+      historyStore.execute(cmd)
+
+      // Select the element so user can adjust
+      const lastEl = diagramStore.diagram.elements[diagramStore.diagram.elements.length - 1]
+      if (lastEl) diagramStore.selectElement(lastEl.id)
+      toolStore.setTool('select')
+    }
+    reader.readAsDataURL(file)
+  }
+  input.click()
+}
 </script>
 
 <template>
   <div class="widget-palette">
     <div class="panel-header">Komponenty</div>
+    <div class="bg-upload">
+      <button class="bg-upload-btn" title="Vložit obrázek jako podklad (půdorys, schéma)" @click="onBackgroundUpload">
+        Vložit podklad
+      </button>
+    </div>
     <div class="widget-grid">
       <button
         v-for="w in widgets"
@@ -203,6 +256,28 @@ function onImageUpload() {
   font-size: 13px;
   border-bottom: 1px solid var(--border-color);
   color: var(--text-primary);
+}
+
+.bg-upload {
+  padding: 8px 8px 0;
+}
+
+.bg-upload-btn {
+  width: 100%;
+  padding: 7px 0;
+  background: var(--bg-secondary);
+  border: 1px dashed var(--input-border);
+  border-radius: 5px;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+
+.bg-upload-btn:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
 }
 
 .widget-grid {

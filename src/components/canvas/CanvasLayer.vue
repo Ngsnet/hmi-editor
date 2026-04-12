@@ -17,6 +17,7 @@ const layerElements = computed(() => diagramStore.elementsOnLayer(props.layer.id
   <g
     :data-layer-id="layer.id"
     :visibility="layer.visible ? 'visible' : 'hidden'"
+    :opacity="layer.opacity ?? 1"
   >
     <CanvasElement
       v-for="element in layerElements"

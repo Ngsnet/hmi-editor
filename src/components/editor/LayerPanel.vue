@@ -136,6 +136,19 @@ function selectAndPanTo(el: CanvasElement) {
             @click.stop="deleteLayer(layer.id)">✕</button>
         </div>
 
+        <!-- Layer opacity (visible when expanded) -->
+        <div v-if="expandedLayers.has(layer.id)" class="layer-opacity" @click.stop>
+          <span class="opacity-label">Opacity</span>
+          <input
+            type="range"
+            :value="layer.opacity ?? 1"
+            min="0" max="1" step="0.05"
+            class="layer-opacity-slider"
+            @input="diagramStore.updateLayer(layer.id, { opacity: Number(($event.target as HTMLInputElement).value) })"
+          />
+          <span class="opacity-val">{{ Math.round((layer.opacity ?? 1) * 100) }}%</span>
+        </div>
+
         <!-- Elements in this layer (collapsible) -->
         <template v-if="expandedLayers.has(layer.id)">
           <div
@@ -222,6 +235,35 @@ function selectAndPanTo(el: CanvasElement) {
   background: var(--selection-bg);
   border-left: 3px solid var(--accent);
   padding-left: 5px;
+}
+
+/* Layer opacity */
+.layer-opacity {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px 4px 24px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.opacity-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  min-width: 38px;
+}
+
+.layer-opacity-slider {
+  flex: 1;
+  height: 3px;
+  accent-color: var(--accent);
+}
+
+.opacity-val {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: monospace;
+  min-width: 28px;
+  text-align: right;
 }
 
 /* Element items */

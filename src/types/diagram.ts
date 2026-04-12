@@ -56,6 +56,7 @@ export interface Layer {
   visible: boolean
   locked: boolean
   order: number
+  opacity: number  // 0-1, default 1
 }
 
 export interface Diagram {

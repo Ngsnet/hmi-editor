@@ -66,3 +66,11 @@ html, body, #app {
   --help-bg: #ffffff;
   --swatch-border: #bbbbbb;
 }
+
+/* Leaflet cursor override for widget placement mode */
+.placing-widget .leaflet-container,
+.placing-widget .leaflet-grab,
+.placing-widget .leaflet-interactive,
+.placing-widget .leaflet-dragging .leaflet-grab {
+  cursor: crosshair !important;
+}

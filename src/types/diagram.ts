@@ -43,6 +43,11 @@ export interface CanvasElement {
   imageData?: string
   imageMimeType?: string
   svgContent?: string    // inline SVG markup for svg type
+  geoPosition?: {
+    lat: number
+    lng: number
+    locked: boolean  // true = pozici nelze měnit v diagram módu, jen na mapě
+  }
 }
 
 export interface Layer {
@@ -64,6 +69,11 @@ export interface Diagram {
   snapToGrid: boolean
   layers: Layer[]
   elements: CanvasElement[]
+  mapSettings?: {
+    defaultCenter: [number, number]
+    defaultZoom: number
+    tileProvider: 'osm' | 'google-streets' | 'google-satellite'
+  }
   createdAt: string
   updatedAt: string
 }

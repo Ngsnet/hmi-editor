@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import CanvasView from '@/components/canvas/CanvasView.vue'
+import MapView from '@/components/map/MapView.vue'
 import Toolbar from './Toolbar.vue'
 import LayerPanel from './LayerPanel.vue'
 import PropertyPanel from './PropertyPanel.vue'
@@ -15,6 +16,7 @@ const diagramStore = useDiagramStore()
 const historyStore = useHistoryStore()
 const toolStore = useToolStore()
 
+const mode = ref<'diagram' | 'map'>('diagram')
 const leftPanelOpen = ref(true)
 const rightPanelOpen = ref(true)
 
@@ -53,7 +55,7 @@ function onDragOver(e: DragEvent) {
 
 <template>
   <div class="editor-layout" @drop="onDrop" @dragover="onDragOver">
-    <Toolbar />
+    <Toolbar :mode="mode" @update:mode="mode = $event" />
     <div class="editor-main">
       <!-- Left panel -->
       <LayerPanel v-show="leftPanelOpen" />
@@ -64,7 +66,8 @@ function onDragOver(e: DragEvent) {
       >{{ leftPanelOpen ? '◂' : '▸' }}</button>
 
       <div class="canvas-container">
-        <CanvasView />
+        <CanvasView v-if="mode === 'diagram'" />
+        <MapView v-else />
       </div>
 
       <!-- Right panel -->
@@ -74,8 +77,8 @@ function onDragOver(e: DragEvent) {
         @click="rightPanelOpen = !rightPanelOpen"
       >{{ rightPanelOpen ? '▸' : '◂' }}</button>
       <div v-show="rightPanelOpen" class="right-panel">
-        <WidgetPalette />
-        <ScadaLibrary />
+        <WidgetPalette v-if="mode === 'diagram'" />
+        <ScadaLibrary v-if="mode === 'diagram'" />
         <PropertyPanel />
       </div>
     </div>

@@ -23,6 +23,11 @@ function defaultDiagram(): Diagram {
       { id: layerId, name: 'Vrstva 1', visible: true, locked: false, order: 0 },
     ],
     elements: [],
+    mapSettings: {
+      defaultCenter: [50.0755, 14.4378], // Praha
+      defaultZoom: 13,
+      tileProvider: 'osm',
+    },
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   }

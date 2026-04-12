@@ -105,6 +105,31 @@ function updateProp(key: string, value: unknown) {
         </div>
       </div>
 
+      <!-- GPS position -->
+      <div v-if="single.geoPosition" class="prop-section">
+        <div class="section-title">GPS pozice</div>
+        <div class="prop-row">
+          <label>Lat</label>
+          <input type="number" :value="single.geoPosition.lat" step="0.000001"
+            @change="updateProp('geoPosition', { ...single.geoPosition, lat: Number(($event.target as HTMLInputElement).value) })" />
+        </div>
+        <div class="prop-row">
+          <label>Lng</label>
+          <input type="number" :value="single.geoPosition.lng" step="0.000001"
+            @change="updateProp('geoPosition', { ...single.geoPosition, lng: Number(($event.target as HTMLInputElement).value) })" />
+        </div>
+        <div class="prop-row">
+          <label>
+            <input type="checkbox" :checked="single.geoPosition.locked"
+              @change="updateProp('geoPosition', { ...single.geoPosition, locked: ($event.target as HTMLInputElement).checked })" />
+            Uzamknout v diagramu
+          </label>
+        </div>
+        <div class="prop-row">
+          <button class="remove-btn" @click="updateProp('geoPosition', undefined)">Odebrat GPS</button>
+        </div>
+      </div>
+
       <!-- Flags -->
       <div class="prop-section">
         <div class="section-title">Options</div>
@@ -220,5 +245,19 @@ function updateProp(key: string, value: unknown) {
   color: var(--text-dim);
   font-size: 11px;
   margin: 4px 0 0;
+}
+
+.remove-btn {
+  padding: 4px 10px;
+  background: #c0392b;
+  border: none;
+  border-radius: 3px;
+  color: white;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.remove-btn:hover {
+  background: #e74c3c;
 }
 </style>

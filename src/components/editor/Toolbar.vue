@@ -117,12 +117,36 @@ function importJSON() {
 }
 
 const showHelp = ref(false)
+
+const props = defineProps<{
+  mode: 'diagram' | 'map'
+}>()
+
+const emit = defineEmits<{
+  'update:mode': [mode: 'diagram' | 'map']
+}>()
+
+const mapWidgetTools: Array<{ id: string; label: string; icon: string }> = [
+  { id: 'select', label: 'Select', icon: '⊹' },
+  { id: 'gauge', label: 'Gauge', icon: '⏲' },
+  { id: 'switch', label: 'LED', icon: '●' },
+  { id: 'textValue', label: 'Value', icon: '123' },
+  { id: 'toggle', label: 'Toggle', icon: '◑' },
+]
 </script>
 
 <template>
   <div class="toolbar">
-    <!-- Tool buttons -->
+    <!-- Mode toggle -->
     <div class="toolbar-group">
+      <button class="tool-btn text-btn" :class="{ active: props.mode === 'diagram' }" @click="emit('update:mode', 'diagram')">Diagram</button>
+      <button class="tool-btn text-btn" :class="{ active: props.mode === 'map' }" @click="emit('update:mode', 'map')">Mapa</button>
+    </div>
+
+    <div class="separator" />
+
+    <!-- Diagram tools -->
+    <div v-if="props.mode === 'diagram'" class="toolbar-group">
       <button
         v-for="t in tools"
         :key="t.id"
@@ -135,76 +159,92 @@ const showHelp = ref(false)
       </button>
     </div>
 
-    <div class="separator" />
-
-    <!-- Style (applies to selection or sets defaults) -->
-    <div class="toolbar-group style-group">
-      <label class="color-swatch" title="Fill color">
-        <span class="swatch-preview" :style="{ background: currentFill }" />
-        <input
-          type="color"
-          :value="currentFill"
-          @input="setFill(($event.target as HTMLInputElement).value)"
-        />
-      </label>
-      <label class="color-swatch" title="Stroke color">
-        <span class="swatch-preview stroke-preview" :style="{ borderColor: currentStroke }" />
-        <input
-          type="color"
-          :value="currentStroke"
-          @input="setStroke(($event.target as HTMLInputElement).value)"
-        />
-      </label>
-      <label class="style-input" title="Stroke width">
-        <input
-          type="number"
-          :value="currentStrokeWidth"
-          min="0" max="20" step="1"
-          class="num-input"
-          @input="setStrokeWidth(Number(($event.target as HTMLInputElement).value))"
-        />
-      </label>
-      <label class="style-input" title="Opacity">
-        <input
-          type="range"
-          :value="currentOpacity"
-          min="0" max="1" step="0.05"
-          class="opacity-slider"
-          @input="setOpacity(Number(($event.target as HTMLInputElement).value))"
-        />
-        <span class="opacity-value">{{ Math.round(currentOpacity * 100) }}%</span>
-      </label>
+    <!-- Map controls -->
+    <div v-else class="toolbar-group">
+      <select
+        class="tile-select"
+        :value="diagramStore.diagram.mapSettings?.tileProvider ?? 'osm'"
+        @change="diagramStore.diagram.mapSettings = { ...diagramStore.diagram.mapSettings!, tileProvider: ($event.target as HTMLSelectElement).value as any }"
+      >
+        <option value="osm">OpenStreetMap</option>
+        <option value="google-streets">Google Streets</option>
+        <option value="google-satellite">Google Satellite</option>
+      </select>
     </div>
 
-    <div class="separator" />
+    <!-- Diagram-only controls -->
+    <template v-if="props.mode === 'diagram'">
+      <div class="separator" />
 
-    <!-- Undo / Redo -->
-    <div class="toolbar-group">
-      <button class="tool-btn" :disabled="!historyStore.canUndo" title="Undo (Ctrl+Z)" @click="historyStore.undo()">↩</button>
-      <button class="tool-btn" :disabled="!historyStore.canRedo" title="Redo (Ctrl+Y)" @click="historyStore.redo()">↪</button>
-    </div>
+      <!-- Style (applies to selection or sets defaults) -->
+      <div class="toolbar-group style-group">
+        <label class="color-swatch" title="Fill color">
+          <span class="swatch-preview" :style="{ background: currentFill }" />
+          <input
+            type="color"
+            :value="currentFill"
+            @input="setFill(($event.target as HTMLInputElement).value)"
+          />
+        </label>
+        <label class="color-swatch" title="Stroke color">
+          <span class="swatch-preview stroke-preview" :style="{ borderColor: currentStroke }" />
+          <input
+            type="color"
+            :value="currentStroke"
+            @input="setStroke(($event.target as HTMLInputElement).value)"
+          />
+        </label>
+        <label class="style-input" title="Stroke width">
+          <input
+            type="number"
+            :value="currentStrokeWidth"
+            min="0" max="20" step="1"
+            class="num-input"
+            @input="setStrokeWidth(Number(($event.target as HTMLInputElement).value))"
+          />
+        </label>
+        <label class="style-input" title="Opacity">
+          <input
+            type="range"
+            :value="currentOpacity"
+            min="0" max="1" step="0.05"
+            class="opacity-slider"
+            @input="setOpacity(Number(($event.target as HTMLInputElement).value))"
+          />
+          <span class="opacity-value">{{ Math.round(currentOpacity * 100) }}%</span>
+        </label>
+      </div>
 
-    <div class="separator" />
+      <div class="separator" />
 
-    <!-- Zoom -->
-    <div class="toolbar-group">
-      <button class="tool-btn" title="Zoom out (-)" @click="zoomOut">−</button>
-      <span class="zoom-label">{{ Math.round(viewportStore.viewport.scale * 100) }}%</span>
-      <button class="tool-btn" title="Zoom in (+)" @click="zoomIn">+</button>
-      <button class="tool-btn" title="Reset zoom (0)" @click="viewportStore.resetViewport()">1:1</button>
-    </div>
+      <!-- Undo / Redo -->
+      <div class="toolbar-group">
+        <button class="tool-btn" :disabled="!historyStore.canUndo" title="Undo (Ctrl+Z)" @click="historyStore.undo()">↩</button>
+        <button class="tool-btn" :disabled="!historyStore.canRedo" title="Redo (Ctrl+Y)" @click="historyStore.redo()">↪</button>
+      </div>
 
-    <div class="separator" />
+      <div class="separator" />
 
-    <!-- Snap to grid -->
-    <label class="snap-toggle" title="Snap to grid">
-      <input
-        type="checkbox"
-        :checked="diagramStore.diagram.snapToGrid"
-        @change="diagramStore.diagram.snapToGrid = ($event.target as HTMLInputElement).checked"
-      />
-      <span>Zachytávání</span>
-    </label>
+      <!-- Zoom -->
+      <div class="toolbar-group">
+        <button class="tool-btn" title="Zoom out (-)" @click="zoomOut">−</button>
+        <span class="zoom-label">{{ Math.round(viewportStore.viewport.scale * 100) }}%</span>
+        <button class="tool-btn" title="Zoom in (+)" @click="zoomIn">+</button>
+        <button class="tool-btn" title="Reset zoom (0)" @click="viewportStore.resetViewport()">1:1</button>
+      </div>
+
+      <div class="separator" />
+
+      <!-- Snap to grid -->
+      <label class="snap-toggle" title="Snap to grid">
+        <input
+          type="checkbox"
+          :checked="diagramStore.diagram.snapToGrid"
+          @change="diagramStore.diagram.snapToGrid = ($event.target as HTMLInputElement).checked"
+        />
+        <span>Zachytávání</span>
+      </label>
+    </template>
 
     <div class="spacer" />
 
@@ -450,6 +490,27 @@ const showHelp = ref(false)
 .help-btn {
   font-weight: bold;
   font-size: 16px;
+}
+
+.map-tool-btn {
+  width: auto !important;
+  padding: 0 10px !important;
+  gap: 4px;
+}
+
+.tool-label {
+  font-size: 11px;
+}
+
+.tile-select {
+  height: 28px;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: 4px;
+  color: var(--input-text);
+  font-size: 11px;
+  padding: 0 4px;
+  cursor: pointer;
 }
 
 .help-overlay {

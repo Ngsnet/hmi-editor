@@ -8,3 +8,61 @@ html, body, #app {
   overflow: hidden;
   font-family: Inter, system-ui, -apple-system, sans-serif;
 }
+
+/* === Dark theme (default) === */
+.theme-dark {
+  --bg-primary: #1e1e1e;
+  --bg-secondary: #2a2a2a;
+  --bg-tertiary: #333333;
+  --bg-canvas: #e8e8e8;
+  --border-color: #333333;
+  --border-light: #2a2a2a;
+  --text-primary: #eeeeee;
+  --text-secondary: #cccccc;
+  --text-muted: #999999;
+  --text-dim: #666666;
+  --accent: #2196F3;
+  --accent-hover: #1976D2;
+  --btn-bg: transparent;
+  --btn-hover: #333333;
+  --btn-active: #2196F3;
+  --input-bg: #2a2a2a;
+  --input-border: #444444;
+  --input-text: #cccccc;
+  --status-bg: #2d2d2d;
+  --toggle-bg: #2a2a2a;
+  --toggle-hover: #2196F3;
+  --selection-bg: #1a3a5c;
+  --overlay-bg: rgba(0, 0, 0, 0.5);
+  --help-bg: #1e1e1e;
+  --swatch-border: #555555;
+}
+
+/* === Light theme === */
+.theme-light {
+  --bg-primary: #f5f5f5;
+  --bg-secondary: #e8e8e8;
+  --bg-tertiary: #dddddd;
+  --bg-canvas: #ffffff;
+  --border-color: #cccccc;
+  --border-light: #e0e0e0;
+  --text-primary: #222222;
+  --text-secondary: #444444;
+  --text-muted: #777777;
+  --text-dim: #aaaaaa;
+  --accent: #1976D2;
+  --accent-hover: #1565C0;
+  --btn-bg: transparent;
+  --btn-hover: #e0e0e0;
+  --btn-active: #1976D2;
+  --input-bg: #ffffff;
+  --input-border: #cccccc;
+  --input-text: #333333;
+  --status-bg: #e0e0e0;
+  --toggle-bg: #e0e0e0;
+  --toggle-hover: #1976D2;
+  --selection-bg: #bbdefb;
+  --overlay-bg: rgba(0, 0, 0, 0.3);
+  --help-bg: #ffffff;
+  --swatch-border: #bbbbbb;
+}

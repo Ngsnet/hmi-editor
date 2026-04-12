@@ -15,7 +15,7 @@ function updateProp(key: string, value: unknown) {
 
 <template>
   <div class="property-panel">
-    <div class="panel-header">Properties</div>
+    <div class="panel-header">Vlastnosti</div>
 
     <!-- No selection -->
     <div v-if="selected.length === 0" class="panel-empty">
@@ -136,8 +136,8 @@ function updateProp(key: string, value: unknown) {
 <style scoped>
 .property-panel {
   flex: 1;
-  background: #1e1e1e;
-  color: #ccc;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
   font-size: 12px;
   overflow-y: auto;
   user-select: none;
@@ -147,13 +147,13 @@ function updateProp(key: string, value: unknown) {
   padding: 8px 12px;
   font-weight: 600;
   font-size: 13px;
-  border-bottom: 1px solid #333;
-  color: #eee;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-primary);
 }
 
 .panel-empty {
   padding: 20px 12px;
-  color: #666;
+  color: var(--text-dim);
   text-align: center;
 }
 
@@ -163,12 +163,12 @@ function updateProp(key: string, value: unknown) {
 
 .prop-section {
   padding: 6px 12px;
-  border-bottom: 1px solid #2a2a2a;
+  border-bottom: 1px solid var(--border-light);
 }
 
 .section-title {
   font-size: 11px;
-  color: #888;
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 6px;
@@ -183,7 +183,7 @@ function updateProp(key: string, value: unknown) {
 
 .prop-row label {
   font-size: 11px;
-  color: #999;
+  color: var(--text-muted);
   min-width: 16px;
 }
 
@@ -191,33 +191,33 @@ function updateProp(key: string, value: unknown) {
   flex: 1;
   min-width: 0;
   height: 24px;
-  background: #2a2a2a;
-  border: 1px solid #444;
+  background: var(--bg-secondary);
+  border: 1px solid var(--input-border);
   border-radius: 3px;
-  color: #ccc;
+  color: var(--input-text);
   text-align: center;
   font-size: 12px;
   padding: 0 4px;
 }
 
 .prop-row input[type="checkbox"] {
-  accent-color: #2196F3;
+  accent-color: var(--accent);
 }
 
 .text-input {
   flex: 1;
   min-width: 0;
   height: 24px;
-  background: #2a2a2a;
-  border: 1px solid #444;
+  background: var(--bg-secondary);
+  border: 1px solid var(--input-border);
   border-radius: 3px;
-  color: #ccc;
+  color: var(--input-text);
   font-size: 12px;
   padding: 0 6px;
 }
 
 .hint {
-  color: #666;
+  color: var(--text-dim);
   font-size: 11px;
   margin: 4px 0 0;
 }

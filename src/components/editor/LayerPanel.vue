@@ -159,9 +159,9 @@ function selectAndPanTo(el: CanvasElement) {
 <style scoped>
 .layer-panel {
   width: 220px;
-  background: #1e1e1e;
-  border-right: 1px solid #333;
-  color: #ccc;
+  background: var(--bg-primary);
+  border-right: 1px solid var(--border-color);
+  color: var(--text-secondary);
   font-size: 12px;
   display: flex;
   flex-direction: column;
@@ -175,17 +175,17 @@ function selectAndPanTo(el: CanvasElement) {
   padding: 8px 12px;
   font-weight: 600;
   font-size: 13px;
-  border-bottom: 1px solid #333;
-  color: #eee;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-primary);
 }
 
 .add-btn {
   width: 24px;
   height: 24px;
-  background: #333;
-  border: 1px solid #555;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--swatch-border);
   border-radius: 4px;
-  color: #ccc;
+  color: var(--text-secondary);
   font-size: 16px;
   cursor: pointer;
   display: flex;
@@ -194,7 +194,7 @@ function selectAndPanTo(el: CanvasElement) {
 }
 
 .add-btn:hover {
-  background: #2196F3;
+  background: var(--accent);
   color: white;
 }
 
@@ -208,19 +208,19 @@ function selectAndPanTo(el: CanvasElement) {
   align-items: center;
   gap: 4px;
   padding: 6px 8px;
-  border-bottom: 1px solid #2a2a2a;
+  border-bottom: 1px solid var(--bg-secondary);
   cursor: pointer;
   transition: background 0.1s;
   font-weight: 600;
 }
 
 .layer-item:hover {
-  background: #2a2a2a;
+  background: var(--bg-secondary);
 }
 
 .layer-item.active {
-  background: #1a3a5c;
-  border-left: 3px solid #2196F3;
+  background: var(--selection-bg);
+  border-left: 3px solid var(--accent);
   padding-left: 5px;
 }
 
@@ -232,20 +232,20 @@ function selectAndPanTo(el: CanvasElement) {
   padding: 4px 8px 4px 24px;
   cursor: pointer;
   transition: background 0.1s;
-  border-bottom: 1px solid #222;
+  border-bottom: 1px solid var(--border-light);
 }
 
 .element-item:hover {
-  background: #2a2a2a;
+  background: var(--bg-secondary);
 }
 
 .element-item.selected {
-  background: #1a3a5c;
+  background: var(--selection-bg);
 }
 
 .el-icon {
   font-size: 11px;
-  color: #888;
+  color: var(--text-muted);
   min-width: 16px;
   text-align: center;
 }
@@ -256,7 +256,7 @@ function selectAndPanTo(el: CanvasElement) {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 11px;
-  color: #bbb;
+  color: var(--text-secondary);
 }
 
 .el-badge {
@@ -267,7 +267,7 @@ function selectAndPanTo(el: CanvasElement) {
 .icon-btn {
   background: none;
   border: none;
-  color: #999;
+  color: var(--text-muted);
   cursor: pointer;
   font-size: 12px;
   padding: 2px;
@@ -276,7 +276,7 @@ function selectAndPanTo(el: CanvasElement) {
 
 .icon-btn:hover {
   color: #fff;
-  background: #333;
+  background: var(--bg-tertiary);
 }
 
 .expand-btn {
@@ -314,10 +314,10 @@ function selectAndPanTo(el: CanvasElement) {
   flex: 1;
   min-width: 0;
   height: 22px;
-  background: #2a2a2a;
-  border: 1px solid #2196F3;
+  background: var(--bg-secondary);
+  border: 1px solid var(--accent);
   border-radius: 3px;
-  color: #ccc;
+  color: var(--text-secondary);
   font-size: 12px;
   padding: 0 4px;
   outline: none;

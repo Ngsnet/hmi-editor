@@ -176,7 +176,7 @@ function onImageUpload() {
 
 <template>
   <div class="widget-palette">
-    <div class="panel-header">Widgets</div>
+    <div class="panel-header">Komponenty</div>
     <div class="widget-grid">
       <button
         v-for="w in widgets"
@@ -194,15 +194,15 @@ function onImageUpload() {
 
 <style scoped>
 .widget-palette {
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .panel-header {
   padding: 8px 12px;
   font-weight: 600;
   font-size: 13px;
-  border-bottom: 1px solid #333;
-  color: #eee;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-primary);
 }
 
 .widget-grid {
@@ -218,17 +218,17 @@ function onImageUpload() {
   align-items: center;
   gap: 2px;
   padding: 8px 4px;
-  background: #2a2a2a;
-  border: 1px solid #444;
+  background: var(--bg-secondary);
+  border: 1px solid var(--input-border);
   border-radius: 4px;
-  color: #ccc;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.1s;
 }
 
 .widget-btn:hover {
-  background: #333;
-  border-color: #2196F3;
+  background: var(--bg-tertiary);
+  border-color: var(--accent);
   color: white;
 }
 
@@ -238,6 +238,6 @@ function onImageUpload() {
 
 .widget-label {
   font-size: 10px;
-  color: #999;
+  color: var(--text-muted);
 }
 </style>

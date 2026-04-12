@@ -8,13 +8,15 @@ import ScadaLibrary from './ScadaLibrary.vue'
 import { useDiagramStore } from '@/stores/diagramStore'
 import { useHistoryStore } from '@/stores/historyStore'
 import { useToolStore } from '@/stores/toolStore'
-import { useViewport } from '@/composables/useViewport'
 import { AddElementCommand } from '@/commands/elementCommands'
 import { ref } from 'vue'
 
 const diagramStore = useDiagramStore()
 const historyStore = useHistoryStore()
 const toolStore = useToolStore()
+
+const leftPanelOpen = ref(true)
+const rightPanelOpen = ref(true)
 
 function onDrop(e: DragEvent) {
   e.preventDefault()
@@ -53,11 +55,25 @@ function onDragOver(e: DragEvent) {
   <div class="editor-layout" @drop="onDrop" @dragover="onDragOver">
     <Toolbar />
     <div class="editor-main">
-      <LayerPanel />
+      <!-- Left panel -->
+      <LayerPanel v-show="leftPanelOpen" />
+      <button
+        class="panel-toggle left"
+        :title="leftPanelOpen ? 'Hide layers' : 'Show layers'"
+        @click="leftPanelOpen = !leftPanelOpen"
+      >{{ leftPanelOpen ? '◂' : '▸' }}</button>
+
       <div class="canvas-container">
         <CanvasView />
       </div>
-      <div class="right-panel">
+
+      <!-- Right panel -->
+      <button
+        class="panel-toggle right"
+        :title="rightPanelOpen ? 'Hide properties' : 'Show properties'"
+        @click="rightPanelOpen = !rightPanelOpen"
+      >{{ rightPanelOpen ? '▸' : '◂' }}</button>
+      <div v-show="rightPanelOpen" class="right-panel">
         <WidgetPalette />
         <ScadaLibrary />
         <PropertyPanel />
@@ -90,8 +106,54 @@ function onDragOver(e: DragEvent) {
   display: flex;
   flex-direction: column;
   width: 220px;
-  background: #1e1e1e;
-  border-left: 1px solid #333;
+  background: var(--bg-primary);
+  border-left: 1px solid var(--border-color);
   overflow-y: auto;
+}
+
+.panel-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  background: var(--bg-secondary);
+  border: none;
+  color: #999;
+  font-size: 14px;
+  cursor: pointer;
+  user-select: none;
+  padding: 0;
+  flex-shrink: 0;
+  transition: all 0.15s;
+  position: relative;
+}
+
+.panel-toggle::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 40px;
+  background: var(--swatch-border);
+  border-radius: 2px;
+}
+
+.panel-toggle:hover {
+  background: var(--accent);
+  color: #fff;
+  width: 22px;
+}
+
+.panel-toggle:hover::after {
+  background: transparent;
+}
+
+.panel-toggle.left {
+  border-right: 1px solid var(--border-color);
+}
+
+.panel-toggle.right {
+  border-left: 1px solid var(--border-color);
 }
 </style>

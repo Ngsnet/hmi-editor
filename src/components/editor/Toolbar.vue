@@ -4,11 +4,13 @@ import { useToolStore, type ToolType } from '@/stores/toolStore'
 import { useViewportStore } from '@/stores/viewportStore'
 import { useHistoryStore } from '@/stores/historyStore'
 import { useDiagramStore } from '@/stores/diagramStore'
+import { useThemeStore } from '@/stores/themeStore'
 
 const toolStore = useToolStore()
 const viewportStore = useViewportStore()
 const historyStore = useHistoryStore()
 const diagramStore = useDiagramStore()
+const themeStore = useThemeStore()
 
 const tools: Array<{ id: ToolType; label: string; shortcut: string; icon: string }> = [
   { id: 'select', label: 'Select', shortcut: 'V', icon: '⊹' },
@@ -201,7 +203,7 @@ const showHelp = ref(false)
         :checked="diagramStore.diagram.snapToGrid"
         @change="diagramStore.diagram.snapToGrid = ($event.target as HTMLInputElement).checked"
       />
-      <span>Snap</span>
+      <span>Zachytávání</span>
     </label>
 
     <div class="spacer" />
@@ -215,6 +217,7 @@ const showHelp = ref(false)
     <div class="separator" />
 
     <!-- Help -->
+    <button class="tool-btn theme-btn" :title="themeStore.isDark ? 'Switch to light theme' : 'Switch to dark theme'" @click="themeStore.toggle()">{{ themeStore.isDark ? '☀' : '☾' }}</button>
     <button class="tool-btn help-btn" title="Help" @click="showHelp = !showHelp">?</button>
 
     <!-- Help overlay -->
@@ -281,7 +284,7 @@ const showHelp = ref(false)
             <tr><td>Right-click vertex</td><td>Delete point</td></tr>
           </table>
 
-          <h3>Widgets</h3>
+          <h3>Komponenty</h3>
           <p>Use the Widgets panel (right) to add Gauge, LED, Value, Text, or Image elements. Drag an image file onto the canvas to insert it.</p>
         </div>
       </div>
@@ -295,8 +298,8 @@ const showHelp = ref(false)
   align-items: center;
   gap: 4px;
   padding: 4px 8px;
-  background: #1e1e1e;
-  border-bottom: 1px solid #333;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-color);
   user-select: none;
   min-height: 40px;
 }
@@ -314,7 +317,7 @@ const showHelp = ref(false)
 .separator {
   width: 1px;
   height: 24px;
-  background: #444;
+  background: var(--input-border);
   margin: 0 6px;
 }
 
@@ -331,21 +334,21 @@ const showHelp = ref(false)
   border: 1px solid transparent;
   border-radius: 4px;
   background: transparent;
-  color: #ccc;
+  color: var(--text-secondary);
   font-size: 16px;
   cursor: pointer;
   transition: all 0.1s;
 }
 
 .tool-btn:hover {
-  background: #333;
-  border-color: #555;
+  background: var(--btn-hover);
+  border-color: var(--swatch-border);
 }
 
 .tool-btn.active {
-  background: #2196F3;
+  background: var(--accent);
   color: white;
-  border-color: #2196F3;
+  border-color: var(--accent);
 }
 
 .tool-btn:disabled {
@@ -383,7 +386,7 @@ const showHelp = ref(false)
   width: 24px;
   height: 24px;
   border-radius: 4px;
-  border: 2px solid #555;
+  border: 2px solid var(--swatch-border);
   cursor: pointer;
 }
 
@@ -402,10 +405,10 @@ const showHelp = ref(false)
 .num-input {
   width: 42px;
   height: 26px;
-  background: #2a2a2a;
-  border: 1px solid #555;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
   border-radius: 4px;
-  color: #ccc;
+  color: var(--input-text);
   text-align: center;
   font-size: 12px;
 }
@@ -413,7 +416,7 @@ const showHelp = ref(false)
 .opacity-slider {
   width: 60px;
   height: 4px;
-  accent-color: #2196F3;
+  accent-color: var(--accent);
 }
 
 .opacity-value {
@@ -441,7 +444,7 @@ const showHelp = ref(false)
 }
 
 .snap-toggle input[type="checkbox"] {
-  accent-color: #2196F3;
+  accent-color: var(--accent);
 }
 
 .help-btn {
@@ -463,8 +466,8 @@ const showHelp = ref(false)
 }
 
 .help-panel {
-  background: #1e1e1e;
-  border: 1px solid #444;
+  background: var(--help-bg);
+  border: 1px solid var(--input-border);
   border-radius: 8px;
   width: 520px;
   max-height: 80vh;
@@ -478,16 +481,16 @@ const showHelp = ref(false)
   justify-content: space-between;
   align-items: center;
   padding: 12px 16px;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid var(--border-color);
   font-weight: 600;
   font-size: 15px;
-  color: #eee;
+  color: var(--text-primary);
 }
 
 .help-close {
   background: none;
   border: none;
-  color: #999;
+  color: var(--text-muted);
   font-size: 18px;
   cursor: pointer;
   padding: 4px 8px;
@@ -495,8 +498,8 @@ const showHelp = ref(false)
 }
 
 .help-close:hover {
-  background: #333;
-  color: #fff;
+  background: var(--btn-hover);
+  color: var(--text-primary);
 }
 
 .help-body {

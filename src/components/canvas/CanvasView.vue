@@ -733,7 +733,7 @@ onMounted(() => {
 .canvas-view {
   flex: 1;
   display: block;
-  background: #e8e8e8;
+  background: var(--bg-canvas);
   outline: none;
 }
 
@@ -741,8 +741,8 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   padding: 4px 12px;
-  background: #2d2d2d;
-  color: #ccc;
+  background: var(--status-bg);
+  color: var(--text-secondary);
   font-family: monospace;
   font-size: 12px;
   user-select: none;
@@ -760,7 +760,7 @@ onMounted(() => {
 .text-edit-input {
   width: 100%;
   height: 100%;
-  border: 2px solid #2196F3;
+  border: 2px solid var(--accent);
   border-radius: 2px;
   background: rgba(255, 255, 255, 0.95);
   color: #333;

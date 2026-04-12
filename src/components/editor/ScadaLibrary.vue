@@ -99,7 +99,7 @@ function importSvgFile() {
 <template>
   <div class="scada-library">
     <div class="panel-header" @click="expanded = !expanded">
-      <span>{{ expanded ? '▼' : '▶' }} SCADA Symbols</span>
+      <span>{{ expanded ? '▼' : '▶' }} SCADA Symboly</span>
       <button class="import-btn" title="Import SVG file" @click.stop="importSvgFile">SVG</button>
     </div>
 
@@ -134,7 +134,7 @@ function importSvgFile() {
 
 <style scoped>
 .scada-library {
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .panel-header {
@@ -144,30 +144,30 @@ function importSvgFile() {
   padding: 8px 12px;
   font-weight: 600;
   font-size: 12px;
-  border-bottom: 1px solid #333;
-  color: #ccc;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-secondary);
   cursor: pointer;
   user-select: none;
 }
 
 .panel-header:hover {
-  background: #2a2a2a;
+  background: var(--bg-secondary);
 }
 
 .import-btn {
   padding: 2px 8px;
-  background: #333;
-  border: 1px solid #555;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--swatch-border);
   border-radius: 3px;
-  color: #ccc;
+  color: var(--text-secondary);
   font-size: 10px;
   cursor: pointer;
 }
 
 .import-btn:hover {
-  background: #2196F3;
+  background: var(--accent);
   color: white;
-  border-color: #2196F3;
+  border-color: var(--accent);
 }
 
 .category-tabs {
@@ -175,15 +175,15 @@ function importSvgFile() {
   flex-wrap: wrap;
   gap: 2px;
   padding: 6px 8px;
-  border-bottom: 1px solid #2a2a2a;
+  border-bottom: 1px solid var(--bg-secondary);
 }
 
 .cat-tab {
   padding: 3px 8px;
-  background: #2a2a2a;
-  border: 1px solid #444;
+  background: var(--bg-secondary);
+  border: 1px solid var(--input-border);
   border-radius: 3px;
-  color: #999;
+  color: var(--text-muted);
   font-size: 10px;
   cursor: pointer;
 }
@@ -194,9 +194,9 @@ function importSvgFile() {
 }
 
 .cat-tab.active {
-  background: #2196F3;
+  background: var(--accent);
   color: white;
-  border-color: #2196F3;
+  border-color: var(--accent);
 }
 
 .symbols-grid {
@@ -214,17 +214,17 @@ function importSvgFile() {
   align-items: center;
   gap: 4px;
   padding: 6px;
-  background: #2a2a2a;
-  border: 1px solid #444;
+  background: var(--bg-secondary);
+  border: 1px solid var(--input-border);
   border-radius: 4px;
-  color: #ccc;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.1s;
 }
 
 .symbol-btn:hover {
-  background: #333;
-  border-color: #2196F3;
+  background: var(--bg-tertiary);
+  border-color: var(--accent);
 }
 
 .symbol-preview {
@@ -242,7 +242,7 @@ function importSvgFile() {
 
 .symbol-name {
   font-size: 9px;
-  color: #999;
+  color: var(--text-muted);
   text-align: center;
   line-height: 1.2;
 }

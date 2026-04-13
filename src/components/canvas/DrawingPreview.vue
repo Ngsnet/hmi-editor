@@ -20,6 +20,7 @@ const props = defineProps<{
   polylinePreview?: {
     points: Array<{ x: number; y: number }>
     smooth: boolean
+    closed?: boolean
     style: {
       fill: string
       stroke: string
@@ -44,8 +45,9 @@ const dotRadius = computed(() => 4 / viewportStore.viewport.scale)
 const polyPathD = computed(() => {
   const pp = props.polylinePreview
   if (!pp || pp.points.length < 2) return ''
-  if (pp.smooth) return catmullRomPath(pp.points)
-  return pp.points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
+  const suffix = pp.closed ? ' Z' : ''
+  if (pp.smooth) return catmullRomPath(pp.points) + suffix
+  return pp.points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ') + suffix
 })
 
 function catmullRomPath(pts: Array<{ x: number; y: number }>, tension = 0.5): string {
@@ -111,7 +113,7 @@ function catmullRomPath(pts: Array<{ x: number; y: number }>, tension = 0.5): st
     <g v-if="polylinePreview && polylinePreview.points.length >= 2">
       <path
         :d="polyPathD"
-        fill="none"
+        :fill="polylinePreview.closed ? polylinePreview.style.fill : 'none'"
         :stroke="polylinePreview.style.stroke"
         :stroke-width="polyStrokeWidth"
         :opacity="polylinePreview.style.opacity"

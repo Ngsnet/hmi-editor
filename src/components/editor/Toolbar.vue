@@ -18,6 +18,7 @@ const tools: Array<{ id: ToolType; label: string; shortcut: string; icon: string
   { id: 'ellipse', label: 'Ellipse', shortcut: 'E', icon: '◯' },
   { id: 'line', label: 'Line', shortcut: 'L', icon: '╱' },
   { id: 'polyline', label: 'Polyline', shortcut: 'P', icon: '⏢' },
+  { id: 'polygon', label: 'Polygon', shortcut: 'G', icon: '⬠' },
   { id: 'curve', label: 'Curve', shortcut: 'C', icon: '∿' },
 ]
 
@@ -409,6 +410,7 @@ const mapWidgetTools: Array<{ id: string; label: string; icon: string }> = [
             <tr><td><kbd>E</kbd></td><td>Ellipse</td></tr>
             <tr><td><kbd>L</kbd></td><td>Line</td></tr>
             <tr><td><kbd>P</kbd></td><td>Polyline (straight segments)</td></tr>
+            <tr><td><kbd>G</kbd></td><td>Polygon (closed shape with fill)</td></tr>
             <tr><td><kbd>C</kbd></td><td>Curve (smooth)</td></tr>
             <tr><td><kbd>Esc</kbd></td><td>Back to Select / cancel</td></tr>
           </table>

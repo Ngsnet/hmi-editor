@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, reactive } from 'vue'
 
-export type ToolType = 'select' | 'rect' | 'ellipse' | 'line' | 'polyline' | 'curve' | 'text' | 'image'
+export type ToolType = 'select' | 'rect' | 'ellipse' | 'line' | 'polyline' | 'curve' | 'polygon' | 'text' | 'image'
 
 export const useToolStore = defineStore('tool', () => {
   const activeTool = ref<ToolType>('select')

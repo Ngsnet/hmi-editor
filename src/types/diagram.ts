@@ -1,5 +1,5 @@
 export type ElementType =
-  | 'rect' | 'ellipse' | 'line' | 'polyline'
+  | 'rect' | 'ellipse' | 'line' | 'polyline' | 'polygon'
   | 'image' | 'text'
   | 'gauge' | 'switch' | 'textValue'
   | 'slider' | 'progressBar' | 'button' | 'toggle'

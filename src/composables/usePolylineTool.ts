@@ -15,6 +15,8 @@ export function usePolylineTool(
   const points = ref<Array<{ x: number; y: number }>>([])
   const currentPoint = ref({ x: 0, y: 0 })
 
+  const isPolygonTool = computed(() => toolStore.activeTool === 'polygon')
+
   const previewPath = computed(() => {
     if (!isDrawing.value || points.value.length === 0) return null
 
@@ -36,8 +38,9 @@ export function usePolylineTool(
     return {
       points: allPoints,
       smooth,
+      closed: isPolygonTool.value,
       style: {
-        fill: 'none',
+        fill: isPolygonTool.value ? toolStore.toolOptions.fillColor : 'none',
         stroke: toolStore.toolOptions.strokeColor,
         strokeWidth: toolStore.toolOptions.strokeWidth,
         opacity: 0.6,
@@ -83,7 +86,8 @@ export function usePolylineTool(
   }
 
   function finalize() {
-    if (points.value.length < 2) {
+    const minPoints = isPolygonTool.value ? 3 : 2
+    if (points.value.length < minPoints) {
       cancel()
       return
     }
@@ -91,6 +95,7 @@ export function usePolylineTool(
     const snap = diagramStore.diagram.snapToGrid
     const grid = diagramStore.diagram.gridSize
     const smooth = toolStore.activeTool === 'curve'
+    const isPolygon = isPolygonTool.value
 
     const finalPoints = points.value.map(p => ({
       x: snapToGrid(p.x, grid, snap),
@@ -105,7 +110,7 @@ export function usePolylineTool(
     const maxY = Math.max(...ys)
 
     const elementData = {
-      type: 'polyline' as const,
+      type: (isPolygon ? 'polygon' : 'polyline') as 'polygon' | 'polyline',
       x: minX,
       y: minY,
       width: maxX - minX || 1,
@@ -117,7 +122,7 @@ export function usePolylineTool(
       smooth,
       points: finalPoints,
       style: {
-        fill: 'none',
+        fill: isPolygon ? toolStore.toolOptions.fillColor : 'none',
         stroke: toolStore.toolOptions.strokeColor,
         strokeWidth: toolStore.toolOptions.strokeWidth,
         opacity: toolStore.toolOptions.opacity,

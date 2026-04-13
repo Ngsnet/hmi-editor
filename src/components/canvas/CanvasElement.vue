@@ -6,6 +6,7 @@ import ShapeRect from '@/components/widgets/ShapeRect.vue'
 import ShapeEllipse from '@/components/widgets/ShapeEllipse.vue'
 import ShapeLine from '@/components/widgets/ShapeLine.vue'
 import ShapePolyline from '@/components/widgets/ShapePolyline.vue'
+import ShapePolygon from '@/components/widgets/ShapePolygon.vue'
 import TextLabel from '@/components/widgets/TextLabel.vue'
 import ImageWidget from '@/components/widgets/ImageWidget.vue'
 import GaugeWidget from '@/components/widgets/GaugeWidget.vue'
@@ -31,6 +32,7 @@ const widgetComponent = computed(() => {
     ellipse: ShapeEllipse,
     line: ShapeLine,
     polyline: ShapePolyline,
+    polygon: ShapePolygon,
     text: TextLabel,
     image: ImageWidget,
     gauge: GaugeWidget,

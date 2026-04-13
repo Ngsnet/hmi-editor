@@ -64,7 +64,7 @@ const polylineTool = usePolylineTool(screenToCanvas, getSvgOffset, (data) => {
 })
 
 const isPolylineTool = computed(() =>
-  toolStore.activeTool === 'polyline' || toolStore.activeTool === 'curve'
+  toolStore.activeTool === 'polyline' || toolStore.activeTool === 'curve' || toolStore.activeTool === 'polygon'
 )
 
 const cursorCanvas = reactive({ x: 0, y: 0 })
@@ -285,6 +285,7 @@ function onKeyDown(e: KeyboardEvent) {
       case 'e': toolStore.setTool('ellipse'); return
       case 'l': toolStore.setTool('line'); return
       case 'p': toolStore.setTool('polyline'); return
+      case 'g': toolStore.setTool('polygon'); return
       case 'c': toolStore.setTool('curve'); return
     }
   }
@@ -579,7 +580,7 @@ const vertexOriginalPoint = reactive({ x: 0, y: 0 })
 function onVertexDragStart(index: number, e: PointerEvent) {
   if (isSelectionLocked()) return
   const el = diagramStore.selectedElements[0]
-  if (!el || el.type !== 'polyline' || !el.points) return
+  if (!el || (el.type !== 'polyline' && el.type !== 'polygon') || !el.points) return
 
   const pt = el.points[index]
   if (!pt) return
@@ -632,6 +633,35 @@ function handleVertexDragMove(e: PointerEvent) {
 
 function handleVertexDragUp() {
   isVertexDrag.value = false
+}
+
+function onVertexInsert(afterIndex: number, e: PointerEvent) {
+  if (isSelectionLocked()) return
+  const el = diagramStore.selectedElements[0]
+  if (!el || (el.type !== 'polyline' && el.type !== 'polygon') || !el.points) return
+
+  const p1 = el.points[afterIndex]!
+  const p2 = el.points[(afterIndex + 1) % el.points.length]!
+  const midX = (p1.x + p2.x) / 2
+  const midY = (p1.y + p2.y) / 2
+
+  // Insert new point after afterIndex
+  const newPoints = [...el.points]
+  newPoints.splice(afterIndex + 1, 0, { x: midX, y: midY })
+
+  // Update bounding box
+  const xs = newPoints.map(p => p.x)
+  const ys = newPoints.map(p => p.y)
+  diagramStore.updateElement(el.id, {
+    points: newPoints,
+    x: Math.min(...xs),
+    y: Math.min(...ys),
+    width: Math.max(...xs) - Math.min(...xs) || 1,
+    height: Math.max(...ys) - Math.min(...ys) || 1,
+  })
+
+  // Immediately start dragging the new vertex
+  onVertexDragStart(afterIndex + 1, e)
 }
 
 const gridSize = computed(() => diagramStore.diagram.gridSize)
@@ -735,6 +765,7 @@ onMounted(() => {
       @rotate-start="onRotateStart"
       @line-handle-start="onLineHandleStart"
       @vertex-drag-start="onVertexDragStart"
+      @vertex-insert="onVertexInsert"
     />
 
   </svg>

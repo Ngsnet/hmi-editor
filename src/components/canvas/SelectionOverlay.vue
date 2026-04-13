@@ -11,6 +11,7 @@ const emit = defineEmits<{
   rotateStart: [e: PointerEvent]
   lineHandleStart: [handle: 'p1' | 'p2' | 'mid', e: PointerEvent]
   vertexDragStart: [index: number, e: PointerEvent]
+  vertexInsert: [afterIndex: number, e: PointerEvent]
 }>()
 
 const ctrlPressed = ref(false)
@@ -54,10 +55,10 @@ const singleLineElement = computed(() => {
   return diagramStore.selectedElements[0]!
 })
 
-// Detect single polyline/curve
+// Detect single polyline/curve/polygon
 const isSinglePolyline = computed(() => {
   const els = diagramStore.selectedElements
-  return els.length === 1 && els[0]?.type === 'polyline'
+  return els.length === 1 && (els[0]?.type === 'polyline' || els[0]?.type === 'polygon')
 })
 
 const singlePolylineElement = computed(() => {
@@ -176,8 +177,32 @@ const polyPathScreenD = computed(() => {
   const el = singlePolylineElement.value
   if (!el || !el.points || el.points.length < 2) return ''
   const screenPts = el.points.map(p => canvasToScreen(p.x, p.y))
-  return screenPts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
+  const path = screenPts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
+  return el.type === 'polygon' ? path + ' Z' : path
 })
+
+// Midpoint handles between consecutive vertices (for inserting new points)
+const polyMidpointHandles = computed(() => {
+  const el = singlePolylineElement.value
+  if (!el || !el.points || el.points.length < 2) return []
+  const pts = el.points
+  const handles: Array<{ afterIndex: number; cx: number; cy: number }> = []
+
+  const segmentCount = el.type === 'polygon' ? pts.length : pts.length - 1
+  for (let i = 0; i < segmentCount; i++) {
+    const p1 = pts[i]!
+    const p2 = pts[(i + 1) % pts.length]!
+    const mid = canvasToScreen((p1.x + p2.x) / 2, (p1.y + p2.y) / 2)
+    handles.push({ afterIndex: i, cx: mid.x, cy: mid.y })
+  }
+  return handles
+})
+
+function onMidpointDown(afterIndex: number, e: PointerEvent) {
+  e.stopPropagation()
+  e.preventDefault()
+  emit('vertexInsert', afterIndex, e)
+}
 
 function onVertexDown(index: number, e: PointerEvent) {
   e.stopPropagation()
@@ -188,9 +213,11 @@ function onVertexDown(index: number, e: PointerEvent) {
 function onVertexRightClick(index: number, e: MouseEvent) {
   e.preventDefault()
   e.stopPropagation()
-  // Delete vertex (min 2 points)
+  // Delete vertex (min 2 points for polyline, 3 for polygon)
   const el = singlePolylineElement.value
-  if (!el || !el.points || el.points.length <= 2) return
+  if (!el || !el.points) return
+  const minPoints = el.type === 'polygon' ? 3 : 2
+  if (el.points.length <= minPoints) return
   const newPoints = el.points.filter((_, i) => i !== index)
   const xs = newPoints.map(p => p.x)
   const ys = newPoints.map(p => p.y)
@@ -239,6 +266,23 @@ function onVertexRightClick(index: number, e: MouseEvent) {
       :stroke="isLocked ? '#ff5555' : '#2196F3'"
       stroke-width="1"
       stroke-dasharray="5 3"
+    />
+    <!-- Midpoint handles (insert new vertex) -->
+    <circle
+      v-for="h in polyMidpointHandles"
+      v-show="!isLocked"
+      :key="'mid-' + h.afterIndex"
+      :cx="h.cx"
+      :cy="h.cy"
+      r="4"
+      fill="#2196F3"
+      fill-opacity="0.3"
+      stroke="#2196F3"
+      stroke-width="1"
+      stroke-dasharray="2 2"
+      style="cursor: copy"
+      pointer-events="all"
+      @pointerdown="onMidpointDown(h.afterIndex, $event)"
     />
     <!-- Vertex handles -->
     <circle

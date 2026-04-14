@@ -1,0 +1,9 @@
+{
+  "apiServers": [
+    { "url": "https://cem2.unimonitor.eu/cemapi/api", "name": "CEM2 Unimonitor" },
+    { "url": "https://t7.softlink.cz/cemapi/api", "name": "T7 Softlink" },
+    { "url": "https://cem2.softlink.cz/cemapi/api", "name": "CEM2 Softlink" },
+    { "url": "https://khk.softlink.cz/cemapi/api", "name": "KHK" }
+  ],
+  "appTitle": "HMI Editor"
+}

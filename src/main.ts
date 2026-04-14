@@ -6,10 +6,21 @@ import { createPinia } from 'pinia'
 
 import App from './App.vue'
 import router from './router'
+import { loadConfig } from './services/config'
+import { useAuthStore } from './stores/authStore'
 
-const app = createApp(App)
+async function bootstrap() {
+  await loadConfig()
 
-app.use(createPinia())
-app.use(router)
+  const app = createApp(App)
+  const pinia = createPinia()
+  app.use(pinia)
+  app.use(router)
 
-app.mount('#app')
+  const auth = useAuthStore()
+  await auth.initAuth()
+
+  app.mount('#app')
+}
+
+bootstrap()

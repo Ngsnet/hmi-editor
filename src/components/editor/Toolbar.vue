@@ -5,12 +5,21 @@ import { useViewportStore } from '@/stores/viewportStore'
 import { useHistoryStore } from '@/stores/historyStore'
 import { useDiagramStore } from '@/stores/diagramStore'
 import { useThemeStore } from '@/stores/themeStore'
+import { useAuthStore } from '@/stores/authStore'
+import { useRouter } from 'vue-router'
 
 const toolStore = useToolStore()
 const viewportStore = useViewportStore()
 const historyStore = useHistoryStore()
 const diagramStore = useDiagramStore()
 const themeStore = useThemeStore()
+const authStore = useAuthStore()
+const router = useRouter()
+
+function handleLogout() {
+  authStore.logout()
+  router.push({ name: 'login' })
+}
 
 const tools: Array<{ id: ToolType; label: string; shortcut: string; icon: string }> = [
   { id: 'select', label: 'Select', shortcut: 'V', icon: '⊹' },
@@ -391,9 +400,15 @@ const mapWidgetTools: Array<{ id: string; label: string; icon: string }> = [
 
     <div class="separator" />
 
-    <!-- Help -->
+    <!-- Help & User -->
     <button class="tool-btn theme-btn" :title="themeStore.isDark ? 'Switch to light theme' : 'Switch to dark theme'" @click="themeStore.toggle()">{{ themeStore.isDark ? '☀' : '☾' }}</button>
     <button class="tool-btn help-btn" title="Help" @click="showHelp = !showHelp">?</button>
+
+    <div class="separator" />
+
+    <!-- User / Logout -->
+    <span v-if="authStore.userDisplayName" class="user-name">{{ authStore.userDisplayName }}</span>
+    <button class="tool-btn text-btn logout-btn" title="Odhlásit" @click="handleLogout">Odhlásit</button>
 
     <!-- Help overlay -->
     <div v-if="showHelp" class="help-overlay" @click.self="showHelp = false">
@@ -661,6 +676,23 @@ const mapWidgetTools: Array<{ id: string; label: string; icon: string }> = [
 .help-btn {
   font-weight: bold;
   font-size: 16px;
+}
+
+.user-name {
+  color: var(--text-muted);
+  font-size: 12px;
+  white-space: nowrap;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.logout-btn {
+  color: #e57373 !important;
+}
+
+.logout-btn:hover {
+  background: rgba(229, 115, 115, 0.15) !important;
 }
 
 /* Map picker modal */

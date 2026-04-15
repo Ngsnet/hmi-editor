@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import CanvasView from '@/components/canvas/CanvasView.vue'
 import MapView from '@/components/map/MapView.vue'
+import IndoorView from '@/components/indoor/IndoorView.vue'
 import Toolbar from './Toolbar.vue'
 import LayerPanel from './LayerPanel.vue'
 import PropertyPanel from './PropertyPanel.vue'
@@ -16,7 +17,7 @@ const diagramStore = useDiagramStore()
 const historyStore = useHistoryStore()
 const toolStore = useToolStore()
 
-const mode = ref<'diagram' | 'map'>('diagram')
+const mode = ref<'diagram' | 'map' | 'indoor'>('diagram')
 const leftPanelOpen = ref(true)
 const rightPanelOpen = ref(true)
 
@@ -57,30 +58,35 @@ function onDragOver(e: DragEvent) {
   <div class="editor-layout" @drop="onDrop" @dragover="onDragOver">
     <Toolbar :mode="mode" @update:mode="mode = $event" />
     <div class="editor-main">
-      <!-- Left panel -->
-      <LayerPanel v-show="leftPanelOpen" />
-      <button
-        class="panel-toggle left"
-        :title="leftPanelOpen ? 'Hide layers' : 'Show layers'"
-        @click="leftPanelOpen = !leftPanelOpen"
-      >{{ leftPanelOpen ? '◂' : '▸' }}</button>
+      <!-- Left panel (hidden in indoor mode) -->
+      <template v-if="mode !== 'indoor'">
+        <LayerPanel v-show="leftPanelOpen" />
+        <button
+          class="panel-toggle left"
+          :title="leftPanelOpen ? 'Hide layers' : 'Show layers'"
+          @click="leftPanelOpen = !leftPanelOpen"
+        >{{ leftPanelOpen ? '◂' : '▸' }}</button>
+      </template>
 
       <div class="canvas-container">
         <CanvasView v-if="mode === 'diagram'" />
-        <MapView v-else />
+        <MapView v-else-if="mode === 'map'" />
+        <IndoorView v-else />
       </div>
 
-      <!-- Right panel -->
-      <button
-        class="panel-toggle right"
-        :title="rightPanelOpen ? 'Hide properties' : 'Show properties'"
-        @click="rightPanelOpen = !rightPanelOpen"
-      >{{ rightPanelOpen ? '▸' : '◂' }}</button>
-      <div v-show="rightPanelOpen" class="right-panel">
-        <WidgetPalette v-if="mode === 'diagram'" />
-        <ScadaLibrary v-if="mode === 'diagram'" />
-        <PropertyPanel />
-      </div>
+      <!-- Right panel (hidden in indoor mode) -->
+      <template v-if="mode !== 'indoor'">
+        <button
+          class="panel-toggle right"
+          :title="rightPanelOpen ? 'Hide properties' : 'Show properties'"
+          @click="rightPanelOpen = !rightPanelOpen"
+        >{{ rightPanelOpen ? '▸' : '◂' }}</button>
+        <div v-show="rightPanelOpen" class="right-panel">
+          <WidgetPalette v-if="mode === 'diagram'" />
+          <ScadaLibrary v-if="mode === 'diagram'" />
+          <PropertyPanel />
+        </div>
+      </template>
     </div>
   </div>
 </template>

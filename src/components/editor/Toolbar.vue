@@ -224,11 +224,11 @@ function applyMapPicker() {
 }
 
 const props = defineProps<{
-  mode: 'diagram' | 'map'
+  mode: 'diagram' | 'map' | 'indoor'
 }>()
 
 const emit = defineEmits<{
-  'update:mode': [mode: 'diagram' | 'map']
+  'update:mode': [mode: 'diagram' | 'map' | 'indoor']
 }>()
 
 const mapWidgetTools: Array<{ id: string; label: string; icon: string }> = [
@@ -246,6 +246,7 @@ const mapWidgetTools: Array<{ id: string; label: string; icon: string }> = [
     <div class="toolbar-group">
       <button class="tool-btn text-btn" :class="{ active: props.mode === 'diagram' }" @click="emit('update:mode', 'diagram')">Diagram</button>
       <button class="tool-btn text-btn" :class="{ active: props.mode === 'map' }" @click="emit('update:mode', 'map')">Mapa</button>
+      <button class="tool-btn text-btn" :class="{ active: props.mode === 'indoor' }" @click="emit('update:mode', 'indoor')">Indoor</button>
     </div>
 
     <div class="separator" />
@@ -265,7 +266,7 @@ const mapWidgetTools: Array<{ id: string; label: string; icon: string }> = [
     </div>
 
     <!-- Map controls -->
-    <div v-else class="toolbar-group">
+    <div v-else-if="props.mode === 'map'" class="toolbar-group">
       <select
         class="tile-select"
         :value="diagramStore.diagram.mapSettings?.tileProvider ?? 'osm'"
@@ -401,6 +402,7 @@ const mapWidgetTools: Array<{ id: string; label: string; icon: string }> = [
     <div class="separator" />
 
     <!-- Help & User -->
+    <button class="tool-btn" title="Admin" @click="router.push({ name: 'admin-home' })">&#9881;</button>
     <button class="tool-btn theme-btn" :title="themeStore.isDark ? 'Switch to light theme' : 'Switch to dark theme'" @click="themeStore.toggle()">{{ themeStore.isDark ? '☀' : '☾' }}</button>
     <button class="tool-btn help-btn" title="Help" @click="showHelp = !showHelp">?</button>
 

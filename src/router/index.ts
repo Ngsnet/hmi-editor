@@ -17,6 +17,34 @@ const router = createRouter({
       component: EditorLayout,
       meta: { requiresAuth: true },
     },
+    {
+      path: '/admin',
+      component: () => import('@/views/admin/AdminLayout.vue'),
+      meta: { requiresAuth: true },
+      children: [
+        {
+          path: '',
+          name: 'admin-home',
+          component: () => import('@/views/admin/AdminUnitList.vue'),
+        },
+        {
+          path: 'units',
+          name: 'admin-units',
+          component: () => import('@/views/admin/AdminUnitList.vue'),
+        },
+        {
+          path: 'units/:id',
+          name: 'admin-unit-detail',
+          component: () => import('@/views/admin/AdminUnitDetail.vue'),
+          props: true,
+        },
+        {
+          path: 'floorplans',
+          name: 'admin-floorplans',
+          component: () => import('@/views/admin/AdminFloorPlans.vue'),
+        },
+      ],
+    },
   ],
 })
 

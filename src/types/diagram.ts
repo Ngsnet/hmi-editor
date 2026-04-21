@@ -14,10 +14,13 @@ export interface DataSource {
   maxValue?: number
 }
 
+export type StrokeDashType = 'solid' | 'dashed' | 'dotted' | 'dash-dot' | 'long-dash'
+
 export interface ElementStyle {
   fill: string
   stroke: string
   strokeWidth: number
+  strokeDash?: StrokeDashType
   opacity: number
   fontSize?: number
   fontFamily?: string

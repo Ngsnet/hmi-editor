@@ -1,15 +1,35 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useDiagramStore } from '@/stores/diagramStore'
+import type { StrokeDashType } from '@/types/diagram'
 
 const diagramStore = useDiagramStore()
 
 const selected = computed(() => diagramStore.selectedElements)
 const single = computed(() => selected.value.length === 1 ? selected.value[0]! : null)
 
+const strokeDashOptions: Array<{ value: StrokeDashType; label: string; pattern: string }> = [
+  { value: 'solid', label: 'Plná', pattern: '' },
+  { value: 'dashed', label: 'Čárkovaná', pattern: '8 4' },
+  { value: 'dotted', label: 'Tečkovaná', pattern: '2 4' },
+  { value: 'dash-dot', label: 'Čárka-tečka', pattern: '8 3 2 3' },
+  { value: 'long-dash', label: 'Dlouhá čárka', pattern: '16 6' },
+]
+
+const isShapeElement = computed(() =>
+  single.value && ['rect', 'ellipse', 'line', 'polyline', 'polygon'].includes(single.value.type)
+)
+
 function updateProp(key: string, value: unknown) {
   if (!single.value) return
   diagramStore.updateElement(single.value.id, { [key]: value } as any)
+}
+
+function updateStyle(key: string, value: unknown) {
+  if (!single.value) return
+  diagramStore.updateElement(single.value.id, {
+    style: { ...single.value.style, [key]: value },
+  } as any)
 }
 </script>
 
@@ -65,6 +85,57 @@ function updateProp(key: string, value: unknown) {
           <label>Rot</label>
           <input type="number" :value="single.rotation" step="1"
             @change="updateProp('rotation', Number(($event.target as HTMLInputElement).value))" />
+        </div>
+      </div>
+
+      <!-- Stroke style (for shape elements) -->
+      <div v-if="isShapeElement" class="prop-section">
+        <div class="section-title">Čára</div>
+        <div class="prop-row">
+          <label>Barva</label>
+          <input type="color" :value="single.style.stroke"
+            class="color-input"
+            @input="updateStyle('stroke', ($event.target as HTMLInputElement).value)" />
+          <label>Šířka</label>
+          <input type="number" :value="single.style.strokeWidth" min="0" step="0.5"
+            @change="updateStyle('strokeWidth', Number(($event.target as HTMLInputElement).value))" />
+        </div>
+        <div class="prop-row">
+          <label>Typ</label>
+          <select class="dash-select"
+            :value="single.style.strokeDash ?? 'solid'"
+            @change="updateStyle('strokeDash', ($event.target as HTMLSelectElement).value)">
+            <option v-for="opt in strokeDashOptions" :key="opt.value" :value="opt.value">
+              {{ opt.label }}
+            </option>
+          </select>
+        </div>
+        <div class="dash-preview">
+          <svg width="100%" height="16" viewBox="0 0 140 16">
+            <line x1="4" y1="8" x2="136" y2="8"
+              :stroke="single.style.stroke"
+              :stroke-width="Math.min(single.style.strokeWidth, 4)"
+              :stroke-dasharray="strokeDashOptions.find(o => o.value === (single?.style.strokeDash ?? 'solid'))?.pattern ?? ''"
+            />
+          </svg>
+        </div>
+        <div class="prop-row">
+          <label>Výplň</label>
+          <input type="color" :value="single.style.fill === 'none' ? '#ffffff' : single.style.fill"
+            class="color-input"
+            @input="updateStyle('fill', ($event.target as HTMLInputElement).value)" />
+          <label>
+            <input type="checkbox" :checked="single.style.fill === 'none'"
+              @change="updateStyle('fill', ($event.target as HTMLInputElement).checked ? 'none' : '#ffffff')" />
+            Bez
+          </label>
+        </div>
+        <div class="prop-row">
+          <label>Průhledness</label>
+          <input type="range" :value="single.style.opacity" min="0" max="1" step="0.05"
+            class="range-input"
+            @input="updateStyle('opacity', Number(($event.target as HTMLInputElement).value))" />
+          <span class="hint">{{ Math.round((single.style.opacity) * 100) }}%</span>
         </div>
       </div>
 
@@ -266,5 +337,40 @@ function updateProp(key: string, value: unknown) {
 
 .remove-btn:hover {
   background: #e74c3c;
+}
+
+.color-input {
+  width: 28px;
+  height: 24px;
+  padding: 1px;
+  border: 1px solid var(--input-border);
+  border-radius: 3px;
+  cursor: pointer;
+  background: var(--bg-secondary);
+}
+
+.dash-select {
+  flex: 1;
+  height: 24px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--input-border);
+  border-radius: 3px;
+  color: var(--input-text);
+  font-size: 12px;
+  padding: 0 4px;
+  cursor: pointer;
+}
+
+.dash-preview {
+  margin: 2px 0;
+  background: var(--bg-secondary);
+  border-radius: 3px;
+  padding: 2px 0;
+}
+
+.range-input {
+  flex: 1;
+  height: 16px;
+  accent-color: var(--accent);
 }
 </style>

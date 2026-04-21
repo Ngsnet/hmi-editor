@@ -149,6 +149,7 @@ export function useDrawTool(
       fill: drawing.type === 'line' ? 'none' : toolStore.toolOptions.fillColor,
       stroke: toolStore.toolOptions.strokeColor,
       strokeWidth: toolStore.toolOptions.strokeWidth,
+      strokeDash: toolStore.toolOptions.strokeDash,
       opacity: toolStore.toolOptions.opacity,
     }
 

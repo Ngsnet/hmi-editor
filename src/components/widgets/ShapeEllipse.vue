@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useViewportStore } from '@/stores/viewportStore'
 import type { CanvasElement } from '@/types/diagram'
+import { strokeDashArray } from '@/utils/svgUtils'
 
 const props = defineProps<{
   element: CanvasElement
@@ -19,6 +20,8 @@ const visualStrokeWidth = computed(() =>
   props.element.style.strokeWidth / viewportStore.viewport.scale
 )
 
+const dashArray = computed(() => strokeDashArray(props.element.style.strokeDash))
+
 const selectionStrokeWidth = computed(() => 2 / viewportStore.viewport.scale)
 const selectionPadding = computed(() => 4 / viewportStore.viewport.scale)
 </script>
@@ -33,6 +36,7 @@ const selectionPadding = computed(() => 4 / viewportStore.viewport.scale)
       :fill="element.style.fill"
       :stroke="element.style.stroke"
       :stroke-width="visualStrokeWidth"
+      :stroke-dasharray="dashArray"
       :opacity="element.style.opacity"
     />
     <!-- Selection highlight -->

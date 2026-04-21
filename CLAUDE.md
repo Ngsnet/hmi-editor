@@ -736,9 +736,341 @@ function importFromJSON(json: string): void {
 }
 ```
 
-### 8.3 REST API (pro pozdější fázi)
+### 8.3 IndexedDB persistence (src/services/storageService.ts)
 
-Připrav stub service `src/services/diagramService.ts`:
+Abstrakce nad úložištěm s repository pattern — stejné rozhraní pro IndexedDB (frontend) i PostgreSQL REST API (backend). Umožňuje transparentní přechod na backend bez změny kódu ve storech.
+
+#### 8.3.1 Storage interface (src/services/storageInterface.ts)
+
+```typescript
+// Společné rozhraní pro všechny storage implementace
+// Mapuje se 1:1 na budoucí PostgreSQL tabulky
+
+export interface StorageRepository<T extends { id: string }> {
+  getAll(): Promise<T[]>
+  getById(id: string): Promise<T | undefined>
+  create(item: T): Promise<T>
+  update(id: string, patch: Partial<T>): Promise<T>
+  delete(id: string): Promise<void>
+  bulkCreate(items: T[]): Promise<T[]>
+  bulkDelete(ids: string[]): Promise<void>
+}
+
+export interface StorageService {
+  diagrams: StorageRepository<Diagram>
+  elements: StorageRepository<CanvasElement>
+  layers: StorageRepository<Layer>
+  buildings: StorageRepository<Building>
+  floors: StorageRepository<Floor>
+  units: StorageRepository<Unit>
+  // Lifecycle:
+  init(): Promise<void>
+  close(): Promise<void>
+}
+```
+
+#### 8.3.2 IndexedDB implementace (src/services/indexedDbStorage.ts)
+
+```typescript
+// Použij idb knihovnu (lightweight wrapper nad IndexedDB)
+// npm install idb
+
+import { openDB, type IDBPDatabase } from 'idb'
+
+const DB_NAME = 'hmi-editor'
+const DB_VERSION = 1
+
+// Schéma DB — každý object store = budoucí PostgreSQL tabulka
+// Indexy odpovídají budoucím SQL indexům
+async function initDB(): Promise<IDBPDatabase> {
+  return openDB(DB_NAME, DB_VERSION, {
+    upgrade(db) {
+      // diagrams (→ PostgreSQL: diagrams table)
+      const diagrams = db.createObjectStore('diagrams', { keyPath: 'id' })
+      diagrams.createIndex('by_name', 'name')
+      diagrams.createIndex('by_updated', 'updatedAt')
+
+      // elements (→ PostgreSQL: elements table, FK: diagram_id, layer_id)
+      const elements = db.createObjectStore('elements', { keyPath: 'id' })
+      elements.createIndex('by_diagram', 'diagramId')
+      elements.createIndex('by_layer', 'layerId')
+      elements.createIndex('by_type', 'type')
+
+      // layers (→ PostgreSQL: layers table, FK: diagram_id)
+      const layers = db.createObjectStore('layers', { keyPath: 'id' })
+      layers.createIndex('by_diagram', 'diagramId')
+      layers.createIndex('by_order', 'order')
+
+      // buildings (→ PostgreSQL: buildings table)
+      const buildings = db.createObjectStore('buildings', { keyPath: 'id' })
+      buildings.createIndex('by_name', 'name')
+
+      // floors (→ PostgreSQL: floors table, FK: building_id)
+      const floors = db.createObjectStore('floors', { keyPath: 'id' })
+      floors.createIndex('by_building', 'buildingId')
+
+      // units (→ PostgreSQL: units table, FK: floor_id)
+      const units = db.createObjectStore('units', { keyPath: 'id' })
+      units.createIndex('by_floor', 'floorId')
+    }
+  })
+}
+
+// Generic repository pro libovolný object store
+class IndexedDbRepository<T extends { id: string }> implements StorageRepository<T> {
+  constructor(
+    private db: IDBPDatabase,
+    private storeName: string
+  ) {}
+
+  async getAll(): Promise<T[]> {
+    return this.db.getAll(this.storeName)
+  }
+
+  async getById(id: string): Promise<T | undefined> {
+    return this.db.get(this.storeName, id)
+  }
+
+  async create(item: T): Promise<T> {
+    await this.db.put(this.storeName, item)
+    return item
+  }
+
+  async update(id: string, patch: Partial<T>): Promise<T> {
+    const existing = await this.getById(id)
+    if (!existing) throw new Error(`${this.storeName}/${id} not found`)
+    const updated = { ...existing, ...patch }
+    await this.db.put(this.storeName, updated)
+    return updated
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.db.delete(this.storeName, id)
+  }
+
+  async bulkCreate(items: T[]): Promise<T[]> {
+    const tx = this.db.transaction(this.storeName, 'readwrite')
+    await Promise.all([
+      ...items.map(item => tx.store.put(item)),
+      tx.done
+    ])
+    return items
+  }
+
+  async bulkDelete(ids: string[]): Promise<void> {
+    const tx = this.db.transaction(this.storeName, 'readwrite')
+    await Promise.all([
+      ...ids.map(id => tx.store.delete(id)),
+      tx.done
+    ])
+  }
+
+  // Helper: query by index (IndexedDB) → mapuje se na WHERE clause v SQL
+  async getByIndex(indexName: string, value: IDBValidKey): Promise<T[]> {
+    return this.db.getAllFromIndex(this.storeName, indexName, value)
+  }
+}
+```
+
+#### 8.3.3 REST API implementace (src/services/restApiStorage.ts)
+
+```typescript
+// Budoucí implementace — stejné rozhraní, HTTP calls místo IndexedDB
+// PostgreSQL schéma se generuje z IndexedDB struktury (viz migrace níže)
+
+class RestApiRepository<T extends { id: string }> implements StorageRepository<T> {
+  constructor(private baseUrl: string, private resource: string) {}
+
+  async getAll(): Promise<T[]> {
+    const res = await fetch(`${this.baseUrl}/${this.resource}`)
+    return res.json()
+  }
+
+  async getById(id: string): Promise<T | undefined> {
+    const res = await fetch(`${this.baseUrl}/${this.resource}/${id}`)
+    if (res.status === 404) return undefined
+    return res.json()
+  }
+
+  async create(item: T): Promise<T> {
+    const res = await fetch(`${this.baseUrl}/${this.resource}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(item)
+    })
+    return res.json()
+  }
+
+  async update(id: string, patch: Partial<T>): Promise<T> {
+    const res = await fetch(`${this.baseUrl}/${this.resource}/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch)
+    })
+    return res.json()
+  }
+
+  async delete(id: string): Promise<void> {
+    await fetch(`${this.baseUrl}/${this.resource}/${id}`, { method: 'DELETE' })
+  }
+
+  async bulkCreate(items: T[]): Promise<T[]> {
+    const res = await fetch(`${this.baseUrl}/${this.resource}/bulk`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(items)
+    })
+    return res.json()
+  }
+
+  async bulkDelete(ids: string[]): Promise<void> {
+    await fetch(`${this.baseUrl}/${this.resource}/bulk`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids })
+    })
+  }
+}
+```
+
+#### 8.3.4 Storage factory + migrace z localStorage
+
+```typescript
+// src/services/storageFactory.ts
+
+export type StorageBackend = 'indexeddb' | 'rest-api'
+
+export function createStorageService(
+  backend: StorageBackend = 'indexeddb',
+  apiBaseUrl?: string
+): StorageService {
+  if (backend === 'rest-api') {
+    return new RestApiStorageService(apiBaseUrl!)
+  }
+  return new IndexedDbStorageService()
+}
+
+// Migrace existujících dat z localStorage do IndexedDB:
+export async function migrateFromLocalStorage(
+  storage: StorageService
+): Promise<void> {
+  const raw = localStorage.getItem('hmi-diagram-v1')
+  if (!raw) return
+
+  const diagram: Diagram = JSON.parse(raw)
+  await storage.diagrams.create(diagram)
+  await storage.layers.bulkCreate(
+    diagram.layers.map(l => ({ ...l, diagramId: diagram.id }))
+  )
+  await storage.elements.bulkCreate(
+    diagram.elements.map(e => ({ ...e, diagramId: diagram.id }))
+  )
+
+  // Po úspěšné migraci smaž localStorage klíč
+  localStorage.removeItem('hmi-diagram-v1')
+}
+```
+
+#### 8.3.5 Napojení na Pinia stores
+
+```typescript
+// V diagramStore — nahraď přímé localStorage volání:
+const storage = createStorageService('indexeddb')
+
+async function loadDiagram(id: string): Promise<void> {
+  const d = await storage.diagrams.getById(id)
+  if (d) diagram.value = d
+}
+
+async function saveDiagram(): Promise<void> {
+  await storage.diagrams.update(diagram.value.id, diagram.value)
+}
+
+// Auto-save zůstává stejný, jen volá saveDiagram() místo localStorage
+watch(diagram, debounce(saveDiagram, 1000), { deep: true })
+```
+
+#### 8.3.6 Budoucí PostgreSQL schéma (reference)
+
+```sql
+-- Generováno z IndexedDB object stores
+-- Každý object store = tabulka, každý index = SQL index
+
+CREATE TABLE diagrams (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(255) NOT NULL,
+  width INT NOT NULL DEFAULT 1920,
+  height INT NOT NULL DEFAULT 1080,
+  background_color VARCHAR(7) DEFAULT '#ffffff',
+  grid_size INT DEFAULT 20,
+  grid_visible BOOLEAN DEFAULT true,
+  snap_to_grid BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE layers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  diagram_id UUID NOT NULL REFERENCES diagrams(id) ON DELETE CASCADE,
+  name VARCHAR(255) NOT NULL,
+  visible BOOLEAN DEFAULT true,
+  locked BOOLEAN DEFAULT false,
+  "order" INT NOT NULL DEFAULT 0
+);
+CREATE INDEX idx_layers_diagram ON layers(diagram_id);
+
+CREATE TABLE elements (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  diagram_id UUID NOT NULL REFERENCES diagrams(id) ON DELETE CASCADE,
+  layer_id UUID NOT NULL REFERENCES layers(id) ON DELETE CASCADE,
+  type VARCHAR(50) NOT NULL,
+  x DOUBLE PRECISION NOT NULL DEFAULT 0,
+  y DOUBLE PRECISION NOT NULL DEFAULT 0,
+  width DOUBLE PRECISION NOT NULL DEFAULT 100,
+  height DOUBLE PRECISION NOT NULL DEFAULT 100,
+  rotation DOUBLE PRECISION DEFAULT 0,
+  locked BOOLEAN DEFAULT false,
+  visible BOOLEAN DEFAULT true,
+  label VARCHAR(255),
+  style JSONB NOT NULL DEFAULT '{}',
+  data_source JSONB,           -- DataSource jako JSON
+  points JSONB,                -- polyline body
+  image_data TEXT,             -- base64 (nebo odkaz na file storage)
+  image_mime_type VARCHAR(50)
+);
+CREATE INDEX idx_elements_diagram ON elements(diagram_id);
+CREATE INDEX idx_elements_layer ON elements(layer_id);
+CREATE INDEX idx_elements_type ON elements(type);
+
+CREATE TABLE buildings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(255) NOT NULL,
+  address TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE floors (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  building_id UUID NOT NULL REFERENCES buildings(id) ON DELETE CASCADE,
+  name VARCHAR(255) NOT NULL,
+  "order" INT NOT NULL DEFAULT 0,
+  floor_plan_id UUID REFERENCES diagrams(id)
+);
+CREATE INDEX idx_floors_building ON floors(building_id);
+
+CREATE TABLE units (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  floor_id UUID NOT NULL REFERENCES floors(id) ON DELETE CASCADE,
+  name VARCHAR(255) NOT NULL,
+  type VARCHAR(50),
+  polygon JSONB                -- obrys jednotky na půdorysu
+);
+CREATE INDEX idx_units_floor ON units(floor_id);
+```
+
+### 8.4 REST API (pro pozdější fázi)
+
+Připrav stub service `src/services/diagramService.ts` (bude nahrazeno RestApiStorageService z 8.3.3):
 
 ```typescript
 export const diagramService = {
@@ -868,12 +1200,13 @@ Implementuj pořadí elementů uvnitř vrstvy přes `order` property nebo pozici
 9. SelectionOverlay s resize handles
 10. historyStore (Undo/Redo)
 11. Persistence (localStorage + JSON export/import)
-12. GaugeWidget + SwitchLED + TextValue
-13. usePolling + liveDataStore napojení
-14. ImageWidget + drag & drop upload
-15. ShapePolyline + vertex editing
-16. UI panely (Toolbar, LayerPanel, PropertyPanel)
-17. Keyboard shortcuts
+12. IndexedDB persistence + repository pattern (příprava na PostgreSQL backend)
+13. GaugeWidget + SwitchLED + TextValue
+14. usePolling + liveDataStore napojení
+15. ImageWidget + drag & drop upload
+16. ShapePolyline + vertex editing
+17. UI panely (Toolbar, LayerPanel, PropertyPanel)
+18. Keyboard shortcuts
 
 ---
 
@@ -887,4 +1220,6 @@ Pro každou fázi navrhni ruční test scénáře:
 - **Select**: vyber element, posuň, zkontroluj coords v PropertyPanel
 - **Live data**: nastav mock endpoint (json-server nebo podobný), ověř polling a aktualizaci widgetu
 - **Undo/Redo**: přidej element, smaž, undo → element se vrátí se stejnými vlastnostmi
-- **Persistence**: ulož, reload stránky → diagram se obnoví z localStorage
+- **Persistence (localStorage)**: ulož, reload stránky → diagram se obnoví z localStorage
+- **Persistence (IndexedDB)**: migrace z localStorage proběhne automaticky, data jsou v IndexedDB (DevTools → Application → IndexedDB → hmi-editor), localStorage klíč je odstraněn
+- **Storage switch**: přepni na REST API backend → stejné operace fungují přes HTTP calls

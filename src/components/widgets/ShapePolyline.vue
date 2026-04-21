@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useViewportStore } from '@/stores/viewportStore'
 import type { CanvasElement } from '@/types/diagram'
+import { strokeDashArray } from '@/utils/svgUtils'
 
 const props = defineProps<{
   element: CanvasElement
@@ -13,6 +14,8 @@ const viewportStore = useViewportStore()
 const visualStrokeWidth = computed(() =>
   props.element.style.strokeWidth / viewportStore.viewport.scale
 )
+
+const dashArray = computed(() => strokeDashArray(props.element.style.strokeDash))
 
 const selectionStrokeWidth = computed(() => 2 / viewportStore.viewport.scale)
 const hitAreaWidth = computed(() => 10 / viewportStore.viewport.scale)
@@ -68,6 +71,7 @@ function catmullRomPath(pts: Array<{ x: number; y: number }>, tension = 0.5): st
       :fill="element.style.fill === 'none' ? 'none' : element.style.fill"
       :stroke="element.style.stroke"
       :stroke-width="visualStrokeWidth"
+      :stroke-dasharray="dashArray"
       :opacity="element.style.opacity"
       stroke-linecap="round"
       stroke-linejoin="round"

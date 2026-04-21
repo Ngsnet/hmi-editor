@@ -1,8 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import type { Diagram, CanvasElement, Layer } from '@/types/diagram'
-
-const STORAGE_KEY = 'hmi-diagram-v1'
+import { getStorageService } from '@/services/storageFactory'
 
 function generateId(): string {
   return crypto.randomUUID()
@@ -41,6 +40,7 @@ export const useDiagramStore = defineStore('diagram', () => {
   const diagram = ref<Diagram>(defaultDiagram())
   const selectedElementIds = ref<Set<string>>(new Set())
   const activeLayerId = ref<string>(diagram.value.layers[0]?.id ?? '')
+  const storageReady = ref(false)
 
   // --- Computed ---
 
@@ -211,23 +211,50 @@ export const useDiagramStore = defineStore('diagram', () => {
     diagram.value.elements.forEach(el => selectedElementIds.value.add(el.id))
   }
 
-  // --- Persistence ---
+  // --- Persistence (IndexedDB via StorageService) ---
 
-  function saveToLocalStorage(): void {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(diagram.value))
+  async function saveDiagram(): Promise<void> {
+    if (!storageReady.value) return
+    try {
+      const storage = getStorageService()
+      const existing = await storage.diagrams.getById(diagram.value.id)
+      if (existing) {
+        await storage.diagrams.update(diagram.value.id, JSON.parse(JSON.stringify(diagram.value)))
+      } else {
+        await storage.diagrams.create(JSON.parse(JSON.stringify(diagram.value)))
+      }
+    } catch (e) {
+      console.error('Failed to save diagram:', e)
+    }
   }
 
-  function loadFromLocalStorage(): void {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) {
-      try {
-        const data = JSON.parse(raw)
-        diagram.value = data
-        if (data.layers.length > 0) {
-          activeLayerId.value = data.layers[0].id
+  async function loadDiagram(id?: string): Promise<void> {
+    try {
+      const storage = getStorageService()
+      if (id) {
+        const d = await storage.diagrams.getById(id)
+        if (d) {
+          diagram.value = d
+          if (d.layers.length > 0 && d.layers[0]) activeLayerId.value = d.layers[0].id
+          return
         }
-      } catch { /* ignore corrupt data */ }
+      }
+      // Load first available diagram
+      const all = await storage.diagrams.getAll()
+      if (all.length > 0 && all[0]) {
+        diagram.value = all[0]
+        if (all[0].layers.length > 0 && all[0].layers[0]) {
+          activeLayerId.value = all[0].layers[0].id
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load diagram:', e)
     }
+  }
+
+  async function initStorage(): Promise<void> {
+    storageReady.value = true
+    await loadDiagram()
   }
 
   function exportToJSON(): string {
@@ -247,16 +274,14 @@ export const useDiagramStore = defineStore('diagram', () => {
   let saveTimer: ReturnType<typeof setTimeout> | null = null
   watch(diagram, () => {
     if (saveTimer) clearTimeout(saveTimer)
-    saveTimer = setTimeout(saveToLocalStorage, 1000)
+    saveTimer = setTimeout(saveDiagram, 1000)
   }, { deep: true })
-
-  // Load on init
-  loadFromLocalStorage()
 
   return {
     diagram,
     selectedElementIds,
     activeLayerId,
+    storageReady,
     sortedLayers,
     selectedElements,
     elementsOnLayer,
@@ -273,8 +298,9 @@ export const useDiagramStore = defineStore('diagram', () => {
     selectElement,
     deselectAll,
     selectAll,
-    saveToLocalStorage,
-    loadFromLocalStorage,
+    saveDiagram,
+    loadDiagram,
+    initStorage,
     exportToJSON,
     importFromJSON,
   }

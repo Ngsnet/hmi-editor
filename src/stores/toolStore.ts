@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, reactive } from 'vue'
+import type { StrokeDashType } from '@/types/diagram'
 
 export type ToolType = 'select' | 'rect' | 'ellipse' | 'line' | 'polyline' | 'curve' | 'polygon' | 'text' | 'image'
 
@@ -10,6 +11,7 @@ export const useToolStore = defineStore('tool', () => {
     fillColor: '#ffffff',
     strokeColor: '#333333',
     strokeWidth: 2,
+    strokeDash: 'solid' as StrokeDashType,
     opacity: 1,
     fontSize: 14,
   })

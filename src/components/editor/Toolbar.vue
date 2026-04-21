@@ -7,6 +7,7 @@ import { useDiagramStore } from '@/stores/diagramStore'
 import { useThemeStore } from '@/stores/themeStore'
 import { useAuthStore } from '@/stores/authStore'
 import { useRouter } from 'vue-router'
+import L from 'leaflet'
 
 const toolStore = useToolStore()
 const viewportStore = useViewportStore()
@@ -163,7 +164,6 @@ vueWatch(showMapPicker, async (show) => {
     await nextTick()
     await nextTick() // ensure DOM is ready
     if (!pickerMapEl.value) return
-    const L = await import('leaflet')
     const settings = diagramStore.diagram.mapSettings
     const center = settings?.anchorPoint
       ? [settings.anchorPoint.lat, settings.anchorPoint.lng] as [number, number]

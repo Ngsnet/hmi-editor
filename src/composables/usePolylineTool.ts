@@ -125,6 +125,7 @@ export function usePolylineTool(
         fill: isPolygon ? toolStore.toolOptions.fillColor : 'none',
         stroke: toolStore.toolOptions.strokeColor,
         strokeWidth: toolStore.toolOptions.strokeWidth,
+        strokeDash: toolStore.toolOptions.strokeDash,
         opacity: toolStore.toolOptions.opacity,
       },
     }

@@ -2,40 +2,24 @@ import { defineStore } from 'pinia'
 import { ref, reactive, computed, watch } from 'vue'
 import type { Building, FloorId, MeterType, Unit } from '@/types/indoor'
 import { demoBuilding } from '@/data/demoBuilding'
-
-const STORAGE_KEY = 'hmi-building-v1'
-const SETTINGS_KEY = 'hmi-building-settings-v1'
-
-function loadFromStorage(): Building | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) return JSON.parse(raw)
-  } catch { /* ignore corrupt data */ }
-  return null
-}
-
-function loadSettingsFromStorage() {
-  try {
-    const raw = localStorage.getItem(SETTINGS_KEY)
-    if (raw) return JSON.parse(raw)
-  } catch { /* ignore */ }
-  return null
-}
+import { getStorageService } from '@/services/storageFactory'
 
 export const useBuildingStore = defineStore('building', () => {
-  const building = ref<Building>(loadFromStorage() ?? demoBuilding)
+  const building = ref<Building>(JSON.parse(JSON.stringify(demoBuilding)))
   const selectedUnitId = ref<string | null>(null)
   const activeFloor = ref<FloorId>('GL')
   const meterValues = reactive<Map<string, number | null>>(new Map())
   const meterAlerts = reactive<Set<string>>(new Set())
-  const savedSettings = loadSettingsFromStorage()
-  const floorPlanOpacity = ref(savedSettings?.floorPlanOpacity ?? 0.85)
-  const floorPlanScale = ref(savedSettings?.floorPlanScale ?? 1)
-  const floorPlanOffsetX = ref(savedSettings?.floorPlanOffsetX ?? 0)
-  const floorPlanOffsetY = ref(savedSettings?.floorPlanOffsetY ?? 0)
-  const floorPlanRotation = ref(savedSettings?.floorPlanRotation ?? 0)
-  const mapCenter = ref<[number, number] | null>(savedSettings?.mapCenter ?? null)
-  const mapZoom = ref<number | null>(savedSettings?.mapZoom ?? null)
+  const storageReady = ref(false)
+
+  // View settings (loaded from IndexedDB settings store)
+  const floorPlanOpacity = ref(0.85)
+  const floorPlanScale = ref(1)
+  const floorPlanOffsetX = ref(0)
+  const floorPlanOffsetY = ref(0)
+  const floorPlanRotation = ref(0)
+  const mapCenter = ref<[number, number] | null>(null)
+  const mapZoom = ref<number | null>(null)
 
   const pollingIntervals = new Map<string, ReturnType<typeof setInterval>>()
 
@@ -157,47 +141,102 @@ export const useBuildingStore = defineStore('building', () => {
     selectedUnitId.value = null
     meterValues.clear()
     meterAlerts.clear()
-    saveToStorage()
+    saveBuilding()
   }
 
-  // Persistence
+  // --- Persistence (IndexedDB via StorageService) ---
+
+  async function saveBuilding(): Promise<void> {
+    if (!storageReady.value) return
+    try {
+      const storage = getStorageService()
+      const existing = await storage.buildings.getById(building.value.id)
+      if (existing) {
+        await storage.buildings.update(building.value.id, JSON.parse(JSON.stringify(building.value)))
+      } else {
+        await storage.buildings.create(JSON.parse(JSON.stringify(building.value)))
+      }
+    } catch (e) {
+      console.error('Failed to save building:', e)
+    }
+  }
+
+  async function saveSettings(): Promise<void> {
+    if (!storageReady.value) return
+    try {
+      const storage = getStorageService()
+      await storage.settings.set('building-view', {
+        floorPlanOpacity: floorPlanOpacity.value,
+        floorPlanScale: floorPlanScale.value,
+        floorPlanOffsetX: floorPlanOffsetX.value,
+        floorPlanOffsetY: floorPlanOffsetY.value,
+        floorPlanRotation: floorPlanRotation.value,
+        mapCenter: mapCenter.value,
+        mapZoom: mapZoom.value,
+      })
+    } catch (e) {
+      console.error('Failed to save building settings:', e)
+    }
+  }
+
+  async function loadFromStorage(): Promise<void> {
+    try {
+      const storage = getStorageService()
+
+      // Load building
+      const all = await storage.buildings.getAll()
+      if (all.length > 0 && all[0]) {
+        building.value = all[0]
+        activeFloor.value = all[0].floors[0]?.id ?? 'GL'
+      }
+
+      // Load view settings
+      const settings = await storage.settings.get<{
+        floorPlanOpacity?: number
+        floorPlanScale?: number
+        floorPlanOffsetX?: number
+        floorPlanOffsetY?: number
+        floorPlanRotation?: number
+        mapCenter?: [number, number] | null
+        mapZoom?: number | null
+      }>('building-view')
+
+      if (settings) {
+        floorPlanOpacity.value = settings.floorPlanOpacity ?? 0.85
+        floorPlanScale.value = settings.floorPlanScale ?? 1
+        floorPlanOffsetX.value = settings.floorPlanOffsetX ?? 0
+        floorPlanOffsetY.value = settings.floorPlanOffsetY ?? 0
+        floorPlanRotation.value = settings.floorPlanRotation ?? 0
+        mapCenter.value = settings.mapCenter ?? null
+        mapZoom.value = settings.mapZoom ?? null
+      }
+    } catch (e) {
+      console.error('Failed to load building from storage:', e)
+    }
+  }
+
+  async function initStorage(): Promise<void> {
+    storageReady.value = true
+    await loadFromStorage()
+  }
+
+  function resetToDemo() {
+    building.value = JSON.parse(JSON.stringify(demoBuilding))
+    saveBuilding()
+  }
+
+  // Auto-save with debounce
   let saveTimer: ReturnType<typeof setTimeout> | null = null
-
-  function saveToStorage() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(building.value))
-  }
-
-  function saveSettingsToStorage() {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify({
-      floorPlanOpacity: floorPlanOpacity.value,
-      floorPlanScale: floorPlanScale.value,
-      floorPlanOffsetX: floorPlanOffsetX.value,
-      floorPlanOffsetY: floorPlanOffsetY.value,
-      floorPlanRotation: floorPlanRotation.value,
-      mapCenter: mapCenter.value,
-      mapZoom: mapZoom.value,
-    }))
-  }
-
-  function debouncedSave() {
+  watch(building, () => {
     if (saveTimer) clearTimeout(saveTimer)
-    saveTimer = setTimeout(saveToStorage, 1000)
-  }
-
-  // Watch building data changes (debounced)
-  watch(building, debouncedSave, { deep: true })
+    saveTimer = setTimeout(saveBuilding, 1000)
+  }, { deep: true })
 
   // Watch view settings changes
   watch(
     [floorPlanOpacity, floorPlanScale, floorPlanOffsetX, floorPlanOffsetY, floorPlanRotation, mapCenter, mapZoom],
-    saveSettingsToStorage,
+    saveSettings,
   )
-
-  function resetToDemo() {
-    building.value = JSON.parse(JSON.stringify(demoBuilding))
-    localStorage.removeItem(STORAGE_KEY)
-    localStorage.removeItem(SETTINGS_KEY)
-  }
 
   return {
     building,
@@ -205,6 +244,7 @@ export const useBuildingStore = defineStore('building', () => {
     activeFloor,
     meterValues,
     meterAlerts,
+    storageReady,
     floorPlanOpacity,
     floorPlanScale,
     floorPlanOffsetX,
@@ -222,6 +262,7 @@ export const useBuildingStore = defineStore('building', () => {
     registerAllMeters,
     unregisterAllMeters,
     loadBuilding,
+    initStorage,
     resetToDemo,
   }
 })

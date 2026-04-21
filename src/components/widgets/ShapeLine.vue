@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useViewportStore } from '@/stores/viewportStore'
 import type { CanvasElement } from '@/types/diagram'
+import { strokeDashArray } from '@/utils/svgUtils'
 
 const props = defineProps<{
   element: CanvasElement
@@ -18,6 +19,8 @@ const y2 = computed(() => props.element.points?.[1]?.y ?? (props.element.y + pro
 const visualStrokeWidth = computed(() =>
   props.element.style.strokeWidth / viewportStore.viewport.scale
 )
+
+const dashArray = computed(() => strokeDashArray(props.element.style.strokeDash))
 
 const selectionStrokeWidth = computed(() => 2 / viewportStore.viewport.scale)
 const hitAreaWidth = computed(() => 10 / viewportStore.viewport.scale)
@@ -37,6 +40,7 @@ const hitAreaWidth = computed(() => 10 / viewportStore.viewport.scale)
       :x2="x2" :y2="y2"
       :stroke="element.style.stroke"
       :stroke-width="visualStrokeWidth"
+      :stroke-dasharray="dashArray"
       :opacity="element.style.opacity"
     />
     <!-- Selection highlight -->

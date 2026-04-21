@@ -68,6 +68,13 @@ const singlePolylineElement = computed(() => {
 
 // --- Standard bbox handles ---
 
+// Single element rotation (for rotating the selection overlay)
+const singleRotation = computed(() => {
+  const els = diagramStore.selectedElements
+  if (els.length === 1 && els[0]) return els[0].rotation
+  return 0
+})
+
 const selectionBBox = computed(() => {
   const els = diagramStore.selectedElements
   if (els.length === 0) return null
@@ -85,6 +92,15 @@ const selectionBBox = computed(() => {
     width: screenMax.x - screenMin.x,
     height: screenMax.y - screenMin.y,
   }
+})
+
+// Transform string to rotate the selection overlay around its center
+const selectionTransform = computed(() => {
+  const bb = selectionBBox.value
+  if (!bb || singleRotation.value === 0) return undefined
+  const cx = bb.x + bb.width / 2
+  const cy = bb.y + bb.height / 2
+  return `rotate(${singleRotation.value} ${cx} ${cy})`
 })
 
 const handleSize = 8
@@ -303,7 +319,7 @@ function onVertexRightClick(index: number, e: MouseEvent) {
   </g>
 
   <!-- Non-line selection (bbox + handles) -->
-  <g v-else-if="selectionBBox" class="selection-overlay" pointer-events="none">
+  <g v-else-if="selectionBBox" class="selection-overlay" pointer-events="none" :transform="selectionTransform">
     <rect
       :x="selectionBBox.x"
       :y="selectionBBox.y"

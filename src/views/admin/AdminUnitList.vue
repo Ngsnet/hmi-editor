@@ -2,9 +2,11 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useBuildingStore } from '@/stores/buildingStore'
-import type { FloorId } from '@/types/indoor'
+import { useCemDataStore } from '@/stores/cemDataStore'
+import type { FloorId, Unit } from '@/types/indoor'
 
 const buildingStore = useBuildingStore()
+const cemStore = useCemDataStore()
 const router = useRouter()
 
 const filterFloor = ref<FloorId | ''>('')
@@ -33,8 +35,17 @@ const filteredUnits = computed(() => {
   return units.filter(u => u.floor === filterFloor.value)
 })
 
-function meterCount(unit: any): number {
-  return Object.keys(unit.meters).length
+function meterCount(u: Unit): number {
+  let count = 0
+  if (u.cemObjectIds) {
+    for (const objId of u.cemObjectIds) {
+      count += cemStore.getCountersForObject(objId).length
+    }
+  }
+  if (count === 0) {
+    count = Object.keys(u.meters).length
+  }
+  return count
 }
 
 function openUnit(id: string) {

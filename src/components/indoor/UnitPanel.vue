@@ -20,6 +20,12 @@ const hasCemBinding = computed(() =>
   props.unit.cemObjectIds && props.unit.cemObjectIds.length > 0
 )
 
+function formatCemValue(varId: number, value: number): string {
+  const assignment = props.unit.counterLayers?.find(a => a.varId === varId)
+  const decimals = assignment?.decimals ?? 1
+  return value.toFixed(decimals)
+}
+
 const cemMetersGrouped = computed(() => {
   const ids = props.unit.cemObjectIds
   if (!ids) return []
@@ -97,7 +103,7 @@ const contractEndFormatted = computed(() => {
             <span class="cem-counter-dot" :style="{ background: counter.color }" />
             <span class="cem-counter-label">{{ counter.typeName }}</span>
             <span class="cem-counter-val">
-              <template v-if="counter.lastValue != null">{{ counter.lastValue }} {{ counter.unit }}</template>
+              <template v-if="counter.lastValue != null">{{ formatCemValue(counter.id, counter.lastValue) }} {{ counter.unit }}</template>
               <template v-else>--</template>
             </span>
           </div>

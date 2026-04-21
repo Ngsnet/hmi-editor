@@ -227,6 +227,26 @@ function setCounterLayer(varId: number, layer: MediaLayer) {
   }
 }
 
+function getCounterDecimals(varId: number): number {
+  const assignment = unit.value?.counterLayers?.find(a => a.varId === varId)
+  return assignment?.decimals ?? 1
+}
+
+function setCounterDecimals(varId: number, decimals: number) {
+  if (!unit.value) return
+  if (!unit.value.counterLayers) unit.value.counterLayers = []
+  const existing = unit.value.counterLayers.find(a => a.varId === varId)
+  if (existing) {
+    existing.decimals = Math.max(0, Math.min(6, decimals))
+  }
+}
+
+function formatCounterValue(varId: number, value: number | null): string {
+  if (value == null) return '--'
+  const decimals = getCounterDecimals(varId)
+  return value.toFixed(decimals)
+}
+
 function autoAssignLayers() {
   if (!unit.value?.cemObjectIds) return
   if (!unit.value.counterLayers) unit.value.counterLayers = []
@@ -342,6 +362,7 @@ function deleteUnit() {
             <th>Hodnota</th>
             <th>Jednotka</th>
             <th>Vrstva</th>
+            <th>Des.</th>
           </tr>
         </thead>
         <tbody>
@@ -350,7 +371,7 @@ function deleteUnit() {
               <span class="cem-counter-dot" :style="{ background: c.color }" />
               {{ c.typeName }}
             </td>
-            <td class="layer-value">{{ c.lastValue != null ? c.lastValue : '--' }}</td>
+            <td class="layer-value">{{ formatCounterValue(c.varId, c.lastValue) }}</td>
             <td class="layer-unit">{{ c.unit }}</td>
             <td>
               <select
@@ -362,6 +383,15 @@ function deleteUnit() {
                   {{ mediaLayerLabels[ml].icon }} {{ mediaLayerLabels[ml].label }}
                 </option>
               </select>
+            </td>
+            <td>
+              <input
+                type="number"
+                class="decimals-input"
+                min="0" max="6" step="1"
+                :value="getCounterDecimals(c.varId)"
+                @change="setCounterDecimals(c.varId, Number(($event.target as HTMLInputElement).value))"
+              />
             </td>
           </tr>
         </tbody>
@@ -871,6 +901,23 @@ function deleteUnit() {
 }
 
 .layer-select:focus {
+  outline: none;
+  border-color: var(--accent, #2196F3);
+}
+
+.decimals-input {
+  width: 44px;
+  height: 28px;
+  background: var(--input-bg, #2a2a2a);
+  border: 1px solid var(--input-border, #444);
+  border-radius: 5px;
+  color: var(--input-text, #eee);
+  font-size: 12px;
+  text-align: center;
+  padding: 0;
+}
+
+.decimals-input:focus {
   outline: none;
   border-color: var(--accent, #2196F3);
 }

@@ -62,6 +62,35 @@ function removeMeterBadges(root: HTMLElement) {
  * Create a single counter badge — draggable + Ctrl+drag to rotate.
  * Each counter has its own position and rotation stored in CounterLayerAssignment.
  */
+// Sparkline cache: varId → number[]
+const sparklineCache = new Map<number, number[]>()
+
+async function loadSparkline(varId: number) {
+  if (sparklineCache.has(varId)) return
+  const history = await cemStore.fetchHistory48h(varId)
+  const points = history.map(h => h.value)
+  if (points.length > 48) {
+    const step = Math.floor(points.length / 48)
+    sparklineCache.set(varId, points.filter((_, i) => i % step === 0))
+  } else {
+    sparklineCache.set(varId, points)
+  }
+  // Re-render badges after sparkline loaded
+  if (svgContainer.value) applyMeterBadges(svgContainer.value)
+}
+
+function createSparklinePath(values: number[], w: number, h: number): string {
+  if (values.length < 2) return ''
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const range = max - min || 1
+  return values.map((v, i) => {
+    const x = (i / (values.length - 1)) * w - w / 2
+    const y = -(((v - min) / range) * (h - 2) + 1 - h / 2)
+    return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`
+  }).join(' ')
+}
+
 function createCounterBadge(
   svgRoot: SVGSVGElement,
   pos: { x: number; y: number },
@@ -73,7 +102,10 @@ function createCounterBadge(
   varId: number,
 ) {
   const badgeW = 78
-  const badgeH = 16
+  const sparklineData = sparklineCache.get(varId)
+  const hasSparkline = sparklineData && sparklineData.length > 1
+  const sparkH = 14
+  const badgeH = 16 + sparkH + 2  // always include sparkline area
 
   const g = document.createElementNS(NS, 'g')
   g.setAttribute('class', BADGE_CLASS)
@@ -83,13 +115,13 @@ function createCounterBadge(
   // Background
   const bg = document.createElementNS(NS, 'rect')
   bg.setAttribute('x', String(-badgeW / 2))
-  bg.setAttribute('y', String(-badgeH / 2))
+  bg.setAttribute('y', String(-8))
   bg.setAttribute('width', String(badgeW))
   bg.setAttribute('height', String(badgeH))
   bg.setAttribute('rx', '3')
-  bg.setAttribute('fill', 'rgba(0,0,0,0.75)')
-  bg.setAttribute('stroke', 'rgba(255,255,255,0.2)')
-  bg.setAttribute('stroke-width', '0.5')
+  bg.setAttribute('fill', 'rgba(255,253,245,0.85)')
+  bg.setAttribute('stroke', 'rgba(180,170,150,0.6)')
+  bg.setAttribute('stroke-width', '0.8')
   bg.setAttribute('cursor', 'grab')
   bg.setAttribute('pointer-events', 'all')
   g.appendChild(bg)
@@ -108,13 +140,47 @@ function createCounterBadge(
   const label = document.createElementNS(NS, 'text')
   label.setAttribute('x', String(-badgeW / 2 + 16))
   label.setAttribute('y', '4')
-  label.setAttribute('fill', '#ffffff')
+  label.setAttribute('fill', '#1a1a1a')
   label.setAttribute('opacity', String(opacity))
   label.setAttribute('font-size', '10')
   label.setAttribute('font-family', 'monospace')
   label.setAttribute('pointer-events', 'none')
   label.textContent = text
   g.appendChild(label)
+
+  // Sparkline area
+  if (hasSparkline) {
+    const sparkPath = document.createElementNS(NS, 'polyline')
+    const pts = sparklineData.map((v, i) => {
+      const min = Math.min(...sparklineData)
+      const max = Math.max(...sparklineData)
+      const range = max - min || 1
+      const x = (i / (sparklineData.length - 1)) * (badgeW - 8) - (badgeW - 8) / 2
+      const y = 8 + sparkH - ((v - min) / range) * (sparkH - 2) - 1
+      return `${x.toFixed(1)},${y.toFixed(1)}`
+    }).join(' ')
+    sparkPath.setAttribute('points', pts)
+    sparkPath.setAttribute('fill', 'none')
+    sparkPath.setAttribute('stroke', color)
+    sparkPath.setAttribute('stroke-width', '1')
+    sparkPath.setAttribute('opacity', String(opacity * 0.8))
+    sparkPath.setAttribute('pointer-events', 'none')
+    g.appendChild(sparkPath)
+  } else {
+    // No data — dashed baseline
+    const noData = document.createElementNS(NS, 'line')
+    noData.setAttribute('x1', String(-(badgeW - 8) / 2))
+    noData.setAttribute('y1', String(8 + sparkH / 2))
+    noData.setAttribute('x2', String((badgeW - 8) / 2))
+    noData.setAttribute('y2', String(8 + sparkH / 2))
+    noData.setAttribute('stroke', 'rgba(150,150,150,0.4)')
+    noData.setAttribute('stroke-width', '0.8')
+    noData.setAttribute('stroke-dasharray', '3 2')
+    noData.setAttribute('pointer-events', 'none')
+    g.appendChild(noData)
+    // Trigger async load
+    loadSparkline(varId)
+  }
 
   // Drag + rotate logic
   let dragging = false
@@ -287,7 +353,8 @@ function applyMeterBadges(root: HTMLElement) {
           : { x: centroid.x, y: centroid.y + 12 + offsetIndex * 20 }
         const rotation = assignment?.rotation ?? 0
 
-        const val = c.lastValue != null ? `${c.lastValue} ${c.unit}` : '--'
+        const decimals = assignment?.decimals ?? 1
+        const val = c.lastValue != null ? `${c.lastValue.toFixed(decimals)} ${c.unit}` : '--'
         createCounterBadge(svgRoot, pos, rotation, c.color, val, opacity, unit.id, c.id)
         offsetIndex++
       }

@@ -241,6 +241,20 @@ function setCounterDecimals(varId: number, decimals: number) {
   }
 }
 
+function getCounterDefaultChart(varId: number): 'trend' | 'consumption' {
+  const assignment = unit.value?.counterLayers?.find(a => a.varId === varId)
+  return assignment?.defaultChart ?? 'trend'
+}
+
+function setCounterDefaultChart(varId: number, mode: 'trend' | 'consumption') {
+  if (!unit.value) return
+  if (!unit.value.counterLayers) unit.value.counterLayers = []
+  const existing = unit.value.counterLayers.find(a => a.varId === varId)
+  if (existing) {
+    existing.defaultChart = mode
+  }
+}
+
 function formatCounterValue(varId: number, value: number | null): string {
   if (value == null) return '--'
   const decimals = getCounterDecimals(varId)
@@ -363,6 +377,7 @@ function deleteUnit() {
             <th>Jednotka</th>
             <th>Vrstva</th>
             <th>Des.</th>
+            <th>Graf</th>
           </tr>
         </thead>
         <tbody>
@@ -392,6 +407,16 @@ function deleteUnit() {
                 :value="getCounterDecimals(c.varId)"
                 @change="setCounterDecimals(c.varId, Number(($event.target as HTMLInputElement).value))"
               />
+            </td>
+            <td>
+              <select
+                class="chart-mode-select"
+                :value="getCounterDefaultChart(c.varId)"
+                @change="setCounterDefaultChart(c.varId, ($event.target as HTMLSelectElement).value as 'trend' | 'consumption')"
+              >
+                <option value="trend">Trend</option>
+                <option value="consumption">Spotřeba</option>
+              </select>
             </td>
           </tr>
         </tbody>
@@ -918,6 +943,22 @@ function deleteUnit() {
 }
 
 .decimals-input:focus {
+  outline: none;
+  border-color: var(--accent, #2196F3);
+}
+
+.chart-mode-select {
+  height: 28px;
+  background: var(--input-bg, #2a2a2a);
+  border: 1px solid var(--input-border, #444);
+  border-radius: 5px;
+  color: var(--input-text, #eee);
+  font-size: 11px;
+  padding: 0 4px;
+  cursor: pointer;
+}
+
+.chart-mode-select:focus {
   outline: none;
   border-color: var(--accent, #2196F3);
 }

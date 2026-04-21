@@ -143,10 +143,20 @@ function getSvgPointFromEvent(e: MouseEvent): { x: number; y: number } | null {
   return { x: svgPt.x, y: svgPt.y }
 }
 
+/** Total effective rotation of the floor plan (geo-ref + manual) */
+function getTotalRotation(): number {
+  const gt = geoTransform.value
+  if (gt && buildingStore.hasGeoRef) {
+    return gt.rotation + buildingStore.floorPlanRotation
+  }
+  return buildingStore.floorPlanRotation
+}
+
 defineExpose({
   getSvgContainer: () => svgContainerEl.value,
   getSvgViewBox: () => svgViewBox.value,
   getSvgPointFromEvent,
+  getTotalRotation,
 })
 
 onMounted(() => {

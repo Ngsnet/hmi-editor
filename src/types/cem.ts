@@ -164,3 +164,46 @@ export interface CemLiveValue {
   value: number | null
   time: string | null  // formatted timestamp
 }
+
+// =====================
+// TIME SERIES (for charts)
+// =====================
+
+export type PointSource = 'raw' | 'interpolated' | 'predicted'
+export type PointQuality = 'normal' | 'dimmed' | 'outlier'
+
+export interface TimeSeriesPoint {
+  timestamp: number
+  date: Date
+  value: number
+  source: PointSource
+  quality: PointQuality
+}
+
+export interface DataInterval {
+  min: number
+  max: number
+}
+
+export interface TimeSeries {
+  varId: number
+  label: string
+  unit: string
+  color: string
+  points: TimeSeriesPoint[]
+  interval: DataInterval
+}
+
+export interface DataGap {
+  fromIndex: number
+  toIndex: number
+  fromTimestamp: number
+  toTimestamp: number
+  duration: number
+}
+
+export interface PredictionResult {
+  varId: number
+  points: TimeSeriesPoint[]
+  confidence: number
+}

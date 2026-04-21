@@ -11,6 +11,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: []
+  counterClick: [varId: number, unitId: string]
 }>()
 
 const { exportUnitReport } = useIndoorMap()
@@ -99,13 +100,20 @@ const contractEndFormatted = computed(() => {
             <span class="cem-meter-type">{{ meter.meterTypeName ?? 'Měřidlo' }}</span>
             <span class="cem-meter-sn">SN: {{ meter.serial ?? '—' }}</span>
           </div>
-          <div v-for="counter in cemStore.getCountersForMeter(meter.id)" :key="counter.id" class="cem-counter">
+          <div
+            v-for="counter in cemStore.getCountersForMeter(meter.id)"
+            :key="counter.id"
+            class="cem-counter cem-counter-clickable"
+            @click="emit('counterClick', counter.id, unit.id)"
+            title="Klikněte pro zobrazení grafu"
+          >
             <span class="cem-counter-dot" :style="{ background: counter.color }" />
             <span class="cem-counter-label">{{ counter.typeName }}</span>
             <span class="cem-counter-val">
               <template v-if="counter.lastValue != null">{{ formatCemValue(counter.id, counter.lastValue) }} {{ counter.unit }}</template>
               <template v-else>--</template>
             </span>
+            <span class="cem-chart-icon" title="Graf">&#9636;</span>
           </div>
         </div>
       </div>
@@ -348,5 +356,26 @@ const contractEndFormatted = computed(() => {
   font-family: monospace;
   font-weight: 600;
   color: var(--text-primary, #eee);
+}
+
+.cem-counter-clickable {
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.1s;
+}
+
+.cem-counter-clickable:hover {
+  background: var(--btn-hover, rgba(255, 255, 255, 0.06));
+}
+
+.cem-chart-icon {
+  font-size: 12px;
+  color: var(--text-dim, #666);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.cem-counter-clickable:hover .cem-chart-icon {
+  color: var(--accent, #2196F3);
 }
 </style>

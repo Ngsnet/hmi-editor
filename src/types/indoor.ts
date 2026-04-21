@@ -25,6 +25,7 @@ export interface CounterLayerAssignment {
   pos?: { x: number; y: number }  // custom SVG position (if dragged)
   rotation?: number  // text rotation in degrees
   decimals?: number  // number of decimal places for display (default 1)
+  defaultChart?: 'trend' | 'consumption'  // default chart mode (default 'trend')
 }
 
 export interface Unit {

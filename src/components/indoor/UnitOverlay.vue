@@ -24,6 +24,10 @@ const statusStrokes: Record<string, string> = {
   'unassigned': '#9ca3af',
 }
 
+const emit = defineEmits<{
+  counterClick: [varId: number, unitId: string]
+}>()
+
 const cleanupHandlers: Array<() => void> = []
 
 function cleanupAll() {
@@ -62,19 +66,43 @@ function removeMeterBadges(root: HTMLElement) {
  * Create a single counter badge — draggable + Ctrl+drag to rotate.
  * Each counter has its own position and rotation stored in CounterLayerAssignment.
  */
-// Sparkline cache: varId → number[]
-const sparklineCache = new Map<number, number[]>()
+// Sparkline cache: varId → { trend: number[], consumption: number[] }
+const sparklineCache = new Map<number, { trend: number[]; consumption: number[] }>()
+
+function getDefaultChart(unitObj: Unit, varId: number): 'trend' | 'consumption' {
+  return unitObj.counterLayers?.find(a => a.varId === varId)?.defaultChart ?? 'trend'
+}
 
 async function loadSparkline(varId: number) {
   if (sparklineCache.has(varId)) return
   const history = await cemStore.fetchHistory48h(varId)
-  const points = history.map(h => h.value)
-  if (points.length > 48) {
-    const step = Math.floor(points.length / 48)
-    sparklineCache.set(varId, points.filter((_, i) => i % step === 0))
+  const sorted = history.sort((a, b) => a.timestamp - b.timestamp)
+  const raw = sorted.map(h => h.value)
+
+  // Trend: raw values (downsampled)
+  let trend: number[]
+  if (raw.length > 48) {
+    const step = Math.floor(raw.length / 48)
+    trend = raw.filter((_, i) => i % step === 0)
   } else {
-    sparklineCache.set(varId, points)
+    trend = raw
   }
+
+  // Consumption: differences between consecutive readings
+  const diffs: number[] = []
+  for (let i = 1; i < sorted.length; i++) {
+    const diff = sorted[i]!.value - sorted[i - 1]!.value
+    if (diff >= 0) diffs.push(diff)
+  }
+  let consumption: number[]
+  if (diffs.length > 48) {
+    const step = Math.floor(diffs.length / 48)
+    consumption = diffs.filter((_, i) => i % step === 0)
+  } else {
+    consumption = diffs
+  }
+
+  sparklineCache.set(varId, { trend, consumption })
   // Re-render badges after sparkline loaded
   if (svgContainer.value) applyMeterBadges(svgContainer.value)
 }
@@ -100,9 +128,11 @@ function createCounterBadge(
   opacity: number,
   unitId: string,
   varId: number,
+  chartMode: 'trend' | 'consumption',
 ) {
   const badgeW = 78
-  const sparklineData = sparklineCache.get(varId)
+  const cached = sparklineCache.get(varId)
+  const sparklineData = cached ? (chartMode === 'consumption' ? cached.consumption : cached.trend) : undefined
   const hasSparkline = sparklineData && sparklineData.length > 1
   const sparkH = 14
   const badgeH = 16 + sparkH + 2  // always include sparkline area
@@ -124,6 +154,12 @@ function createCounterBadge(
   bg.setAttribute('stroke-width', '0.8')
   bg.setAttribute('cursor', 'grab')
   bg.setAttribute('pointer-events', 'all')
+  // Tooltip with rotation hint
+  const totalRot = floorTotalRotation
+  const compensate = Math.abs(totalRot) > 0.5 ? `Pro vodorovný text: rotace ${(-totalRot).toFixed(1)}°` : 'Text je vodorovný'
+  const title = document.createElementNS(NS, 'title')
+  title.textContent = `Drag = posun, Ctrl+drag = rotace, Ctrl+Shift = 90° snap\nShift+click = vodorovný text\nRotace půdorysu: ${totalRot.toFixed(1)}°\nAktuální rotace: ${rotation.toFixed(1)}°\nDouble-click = graf`
+  bg.appendChild(title)
   g.appendChild(bg)
 
   // Color dot
@@ -227,7 +263,12 @@ function createCounterBadge(
     } else if (rotating) {
       const angle = Math.atan2(svgPt.y - pos.y, svgPt.x - pos.x) * (180 / Math.PI)
       const startAngle = Math.atan2(dragStartY - startPosY, dragStartX - startPosX) * (180 / Math.PI)
-      rotation = startRotation + (angle - startAngle)
+      let newRotation = startRotation + (angle - startAngle)
+      // Shift = snap to 90° increments
+      if (e.shiftKey) {
+        newRotation = Math.round(newRotation / 90) * 90
+      }
+      rotation = newRotation
       g.setAttribute('transform', `translate(${pos.x}, ${pos.y}) rotate(${rotation})`)
     }
   }
@@ -251,10 +292,36 @@ function createCounterBadge(
     }
   }
 
+  // Shift+click = auto-level (compensate floor rotation)
+  function onClick(e: MouseEvent) {
+    if (!e.shiftKey) return
+    e.stopPropagation()
+    e.preventDefault()
+    rotation = -floorTotalRotation
+    g.setAttribute('transform', `translate(${pos.x}, ${pos.y}) rotate(${rotation})`)
+    // Persist
+    const u = buildingStore.building.units.find(u => u.id === unitId)
+    if (u) {
+      const a = u.counterLayers?.find(a => a.varId === varId)
+      if (a) a.rotation = Math.round(rotation * 10) / 10
+    }
+  }
+
   bg.addEventListener('mousedown', onStart)
+  bg.addEventListener('click', onClick)
+
+  // Double-click opens chart modal
+  function onDblClick(e: MouseEvent) {
+    e.stopPropagation()
+    e.preventDefault()
+    emit('counterClick', varId, unitId)
+  }
+  bg.addEventListener('dblclick', onDblClick)
 
   cleanupHandlers.push(() => {
     bg.removeEventListener('mousedown', onStart)
+    bg.removeEventListener('click', onClick)
+    bg.removeEventListener('dblclick', onDblClick)
     document.removeEventListener('mousemove', onMove)
     document.removeEventListener('mouseup', onEnd)
   })
@@ -266,6 +333,11 @@ function createCounterBadge(
 let overlayMediaFilter: Set<string> = new Set() // empty = show all
 let overlayVizMode: 'badge' | 'sparkline' | 'heatmap' = 'badge'
 let overlayLayerOpacity: Record<string, number> = {}
+let floorTotalRotation = 0
+
+function setFloorRotation(rot: number) {
+  floorTotalRotation = rot
+}
 
 function setOverlayFilter(media: Set<string>, viz: 'badge' | 'sparkline' | 'heatmap', opacity?: Record<string, number>) {
   overlayMediaFilter = media
@@ -355,7 +427,8 @@ function applyMeterBadges(root: HTMLElement) {
 
         const decimals = assignment?.decimals ?? 1
         const val = c.lastValue != null ? `${c.lastValue.toFixed(decimals)} ${c.unit}` : '--'
-        createCounterBadge(svgRoot, pos, rotation, c.color, val, opacity, unit.id, c.id)
+        const mode = getDefaultChart(unit, c.id)
+        createCounterBadge(svgRoot, pos, rotation, c.color, val, opacity, unit.id, c.id, mode)
         offsetIndex++
       }
     }
@@ -436,7 +509,7 @@ watch(() => [...cemStore.liveValues], () => {
   if (svgContainer.value) applyMeterBadges(svgContainer.value)
 })
 
-defineExpose({ applyAllStyles, setOverlayFilter })
+defineExpose({ applyAllStyles, setOverlayFilter, setFloorRotation })
 
 onUnmounted(cleanupAll)
 </script>

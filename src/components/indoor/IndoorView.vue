@@ -8,6 +8,7 @@ import UnitOverlay from './UnitOverlay.vue'
 import UnitPanel from './UnitPanel.vue'
 import FloorSwitcher from './FloorSwitcher.vue'
 import GeoRefTool from './GeoRefTool.vue'
+import CounterChartModal from './CounterChartModal.vue'
 import { useCemDataStore } from '@/stores/cemDataStore'
 
 const buildingStore = useBuildingStore()
@@ -21,6 +22,17 @@ const showAdjust = ref(false)
 const showGeoRef = ref(false)
 const showHelp = ref(false)
 const showLayers = ref(false)
+const chartVarId = ref<number | null>(null)
+const chartUnitId = ref<string>('')
+
+function openCounterChart(varId: number, unitId: string) {
+  chartVarId.value = varId
+  chartUnitId.value = unitId
+}
+
+function closeCounterChart() {
+  chartVarId.value = null
+}
 
 // Overlay layer controls
 const overlayMedia = ref<Set<string>>(new Set())
@@ -94,6 +106,9 @@ function getTileUrl(provider: string): { url: string; attribution: string; maxNa
 function onFloorPlanLoaded() {
   // Pass SVG container to UnitOverlay so it can find elements
   const container = floorPlanRef.value?.getSvgContainer()
+  // Pass total rotation for badge tooltip
+  const totalRot = floorPlanRef.value?.getTotalRotation() ?? 0
+  unitOverlayRef.value?.setFloorRotation(totalRot)
   unitOverlayRef.value?.applyAllStyles(container ?? undefined)
 }
 
@@ -151,7 +166,7 @@ onUnmounted(() => {
     <div class="map-area">
       <div ref="mapEl" class="map-element" />
       <FloorPlanLayer ref="floorPlanRef" @loaded="onFloorPlanLoaded" />
-      <UnitOverlay ref="unitOverlayRef" />
+      <UnitOverlay ref="unitOverlayRef" @counter-click="openCounterChart" />
       <FloorSwitcher />
 
       <!-- Geo-reference tool -->
@@ -237,6 +252,17 @@ onUnmounted(() => {
           <button class="layer-chip" :class="{ active: overlayViz === 'badge' }" @click="setViz('badge')">Badge hodnot</button>
           <button class="layer-chip" :class="{ active: overlayViz === 'sparkline' }" @click="setViz('sparkline')">Sparkline</button>
           <button class="layer-chip" :class="{ active: overlayViz === 'heatmap' }" @click="setViz('heatmap')">Heatmapa</button>
+        </div>
+
+        <div class="layers-section layers-help">
+          <div class="layers-section-label">Ovládání badge</div>
+          <div class="badge-help-grid">
+            <span class="badge-help-key">Drag</span><span class="badge-help-desc">Posun badge</span>
+            <span class="badge-help-key">Ctrl+drag</span><span class="badge-help-desc">Volná rotace</span>
+            <span class="badge-help-key">Ctrl+Shift</span><span class="badge-help-desc">Rotace po 90°</span>
+            <span class="badge-help-key">Shift+click</span><span class="badge-help-desc">Vodorovný text</span>
+            <span class="badge-help-key">Double-click</span><span class="badge-help-desc">Otevřít graf</span>
+          </div>
         </div>
       </div>
 
@@ -373,8 +399,17 @@ onUnmounted(() => {
         v-if="buildingStore.selectedUnit"
         :unit="buildingStore.selectedUnit"
         @close="buildingStore.selectUnit(null)"
+        @counter-click="openCounterChart"
       />
     </div>
+
+    <!-- Counter chart modal -->
+    <CounterChartModal
+      v-if="chartVarId != null"
+      :var-id="chartVarId"
+      :unit-id="chartUnitId"
+      @close="closeCounterChart"
+    />
   </div>
 </template>
 
@@ -662,6 +697,33 @@ onUnmounted(() => {
   color: var(--text-muted, #999);
   min-width: 30px;
   text-align: right;
+}
+
+.layers-help {
+  border-top: 1px solid var(--border-color, #333);
+  padding-top: 8px;
+}
+
+.badge-help-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 10px;
+  width: 100%;
+}
+
+.badge-help-key {
+  font-size: 10px;
+  font-family: monospace;
+  color: var(--text-primary, #eee);
+  background: var(--bg-secondary, #161616);
+  padding: 1px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.badge-help-desc {
+  font-size: 10px;
+  color: var(--text-muted, #999);
 }
 
 .help-panel {

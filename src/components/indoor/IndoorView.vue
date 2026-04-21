@@ -258,6 +258,10 @@ onUnmounted(() => {
             <strong>Přiřaďte jednotky</strong>
             <span>Klikněte na nakreslený segment a zvolte "Vytvořit novou jednotku" nebo přiřaďte existující. Nastavte nájemce, plochu a měřiče.</span>
           </li>
+          <li>
+            <strong>Napojte živá data (CEM)</strong>
+            <span>V Admin &rarr; Jednotky &rarr; detail jednotky najděte sekci "CEM Napojení". Vyhledejte objekt (install point) ve stromu CEM a klikněte na něj. Zobrazí se měřidla s počitadly, posledními hodnotami a 48h grafem.</span>
+          </li>
         </ol>
         <div class="help-footer">
           <span class="help-hint">Klávesy: kolečko myši = zoom, pravé tlačítko = přesun mapy</span>

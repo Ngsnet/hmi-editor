@@ -41,21 +41,35 @@ function openUnit(id: string) {
   router.push({ name: 'admin-unit-detail', params: { id } })
 }
 
+const showAddForm = ref(false)
+const newUnitName = ref('')
+const newUnitFloor = ref<FloorId>(buildingStore.sortedFloors[0]?.id ?? '')
+const newUnitCategory = ref('empty')
+
 function addUnit() {
+  const name = newUnitName.value.trim()
+  if (!name) return
   const id = `unit-${Date.now()}`
   buildingStore.building.units.push({
     id,
-    name: 'Nová jednotka',
-    svgPathId: id,
-    floor: buildingStore.activeFloor,
+    name,
+    svgPathId: '',
+    floor: newUnitFloor.value,
     area: 0,
     rentableArea: 0,
     chargeableArea: 0,
     tenant: '',
-    category: 'empty',
+    category: newUnitCategory.value as any,
     meters: {},
   })
+  showAddForm.value = false
+  newUnitName.value = ''
   router.push({ name: 'admin-unit-detail', params: { id } })
+}
+
+function cancelAdd() {
+  showAddForm.value = false
+  newUnitName.value = ''
 }
 </script>
 
@@ -70,7 +84,36 @@ function addUnit() {
             {{ f.label }} ({{ f.id }})
           </option>
         </select>
-        <button class="btn btn-primary" @click="addUnit">+ Přidat jednotku</button>
+        <button class="btn btn-primary" @click="showAddForm = true">+ Přidat jednotku</button>
+      </div>
+    </div>
+
+    <!-- Add unit form -->
+    <div v-if="showAddForm" class="add-unit-form">
+      <div class="add-unit-title">Nová jednotka</div>
+      <div class="add-unit-grid">
+        <label class="add-unit-label">
+          <span>Název</span>
+          <input v-model="newUnitName" type="text" class="add-unit-input" placeholder="např. Obchod A1" autofocus />
+        </label>
+        <label class="add-unit-label">
+          <span>Patro</span>
+          <select v-model="newUnitFloor" class="add-unit-input">
+            <option v-for="f in buildingStore.sortedFloors" :key="f.id" :value="f.id">
+              {{ f.label }} ({{ f.id }})
+            </option>
+          </select>
+        </label>
+        <label class="add-unit-label">
+          <span>Kategorie</span>
+          <select v-model="newUnitCategory" class="add-unit-input">
+            <option v-for="(label, key) in categoryLabels" :key="key" :value="key">{{ label }}</option>
+          </select>
+        </label>
+      </div>
+      <div class="add-unit-actions">
+        <button class="btn btn-primary btn-sm" :disabled="!newUnitName.trim()" @click="addUnit">Vytvořit</button>
+        <button class="btn btn-ghost btn-sm" @click="cancelAdd">Zrušit</button>
       </div>
     </div>
 
@@ -257,5 +300,78 @@ function addUnit() {
   margin-top: 12px;
   font-size: 12px;
   color: var(--text-muted, #999);
+}
+
+.add-unit-form {
+  background: var(--bg-primary, #1e1e1e);
+  border: 2px solid var(--accent, #2196F3);
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin-bottom: 16px;
+}
+
+.add-unit-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent, #2196F3);
+  margin-bottom: 12px;
+}
+
+.add-unit-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.add-unit-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-muted, #999);
+}
+
+.add-unit-input {
+  height: 34px;
+  background: var(--input-bg, #2a2a2a);
+  border: 1px solid var(--input-border, #444);
+  border-radius: 6px;
+  color: var(--input-text, #eee);
+  font-size: 13px;
+  padding: 0 10px;
+}
+
+.add-unit-input:focus {
+  outline: none;
+  border-color: var(--accent, #2196F3);
+}
+
+.add-unit-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-sm {
+  padding: 6px 14px;
+  font-size: 12px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-muted, #999);
+  border: 1px solid var(--border-color, #444);
+}
+
+.btn-ghost:hover {
+  border-color: var(--accent, #2196F3);
+  color: var(--text-primary, #eee);
+}
+
+.btn-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 </style>

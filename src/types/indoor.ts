@@ -29,6 +29,7 @@ export interface Unit {
   contractStart?: string
   contractEnd?: string
   meters: Partial<Record<MeterType, MeterConfig>>
+  cemObjectIds?: number[]  // CEM API object IDs (mis_id[]) — vazba na install points
 }
 
 export interface FloorPlan {

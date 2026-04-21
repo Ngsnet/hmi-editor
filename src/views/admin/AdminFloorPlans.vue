@@ -1203,6 +1203,14 @@ loadExisting()
       </div>
     </div>
 
+    <!-- Empty state: no floors -->
+    <div v-if="buildingStore.sortedFloors.length === 0 && !showAddFloor" class="empty-state">
+      <div class="empty-icon">&#9634;</div>
+      <h3 class="empty-title">Žádné podlaží</h3>
+      <p class="empty-desc">Začněte přidáním prvního podlaží (patra nebo haly). Poté nahrajte SVG půdorys a nakreslete jednotky.</p>
+      <button class="btn btn-primary" @click="showAddFloor = true">Přidat první podlaží</button>
+    </div>
+
     <!-- Floor properties -->
     <div v-if="currentFloor" class="floor-props">
       <div class="floor-props-header">
@@ -1242,12 +1250,24 @@ loadExisting()
     </div>
 
     <!-- Upload -->
-    <div class="upload-section">
+    <div v-if="currentFloor" class="upload-section">
       <label class="upload-label">
         <span class="upload-text">Nahrát SVG soubor pro patro {{ selectedFloor }}</span>
         <input type="file" accept=".svg" class="upload-input" @change="onFileSelect" />
         <span class="upload-btn">Vybrat soubor</span>
       </label>
+    </div>
+
+    <!-- Empty floor state: floor selected but no SVG uploaded -->
+    <div v-if="currentFloor && !svgPreview" class="empty-floor-state">
+      <div class="empty-icon">&#128196;</div>
+      <h3 class="empty-title">Půdorys pro "{{ currentFloor.label }}" není nahrán</h3>
+      <p class="empty-desc">Nahrajte SVG soubor pomocí tlačítka výše. SVG by mělo obsahovat obrys budovy/haly s identifikovatelnými plochami.</p>
+      <div class="empty-floor-tips">
+        <div class="tip-item"><strong>ID patra:</strong> {{ currentFloor.id }}</div>
+        <div class="tip-item"><strong>Pořadí:</strong> {{ currentFloor.order }}</div>
+        <div class="tip-item"><strong>Měřítko:</strong> {{ svgUnitsPerMeter }} SVG/m</div>
+      </div>
     </div>
 
     <div v-if="svgPreview" class="preview-and-panel">
@@ -2242,5 +2262,51 @@ loadExisting()
 .btn-ghost:hover {
   background: var(--btn-hover, #333);
   color: var(--text-primary, #eee);
+}
+
+.empty-state,
+.empty-floor-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+  background: var(--bg-primary, #1e1e1e);
+  border: 1px dashed var(--border-color, #444);
+  border-radius: 12px;
+  margin-top: 16px;
+}
+
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+  opacity: 0.4;
+}
+
+.empty-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary, #eee);
+  margin: 0 0 8px;
+}
+
+.empty-desc {
+  font-size: 13px;
+  color: var(--text-muted, #999);
+  max-width: 400px;
+  line-height: 1.5;
+  margin: 0 0 16px;
+}
+
+.empty-floor-tips {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--text-muted, #999);
+}
+
+.tip-item strong {
+  color: var(--text-secondary, #ccc);
 }
 </style>

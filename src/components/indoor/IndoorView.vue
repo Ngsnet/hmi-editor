@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, shallowRef, computed, provide, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, shallowRef, computed, provide, onMounted, onUnmounted } from 'vue'
 import L from 'leaflet'
 import { useBuildingStore } from '@/stores/buildingStore'
 import { useDiagramStore } from '@/stores/diagramStore'
@@ -25,6 +25,13 @@ const showLayers = ref(false)
 // Overlay layer controls
 const overlayMedia = ref<Set<string>>(new Set())
 const overlayViz = ref<'badge' | 'sparkline' | 'heatmap'>('badge')
+const layerOpacity = reactive<Record<string, number>>({
+  voda: 1,
+  'elektřina': 1,
+  teplo: 1,
+  chlad: 1,
+  teplota: 1,
+})
 
 const mediaOptions = [
   { key: 'voda', label: 'Voda', icon: '\uD83D\uDCA7' },
@@ -39,17 +46,26 @@ function toggleMedia(key: string) {
   if (s.has(key)) s.delete(key)
   else s.add(key)
   overlayMedia.value = s
-  unitOverlayRef.value?.setOverlayFilter(s, overlayViz.value)
+  applyOverlay()
 }
 
 function setAllMedia() {
   overlayMedia.value = new Set()
-  unitOverlayRef.value?.setOverlayFilter(new Set(), overlayViz.value)
+  applyOverlay()
 }
 
 function setViz(v: 'badge' | 'sparkline' | 'heatmap') {
   overlayViz.value = v
-  unitOverlayRef.value?.setOverlayFilter(overlayMedia.value, v)
+  applyOverlay()
+}
+
+function setLayerOpacity(key: string, value: number) {
+  layerOpacity[key] = value
+  applyOverlay()
+}
+
+function applyOverlay() {
+  unitOverlayRef.value?.setOverlayFilter(overlayMedia.value, overlayViz.value, layerOpacity)
 }
 const mapRef = shallowRef<L.Map | null>(null)
 let map: L.Map | null = null
@@ -198,6 +214,22 @@ onUnmounted(() => {
             :class="{ active: overlayMedia.has(m.key) }"
             @click="toggleMedia(m.key)"
           >{{ m.icon }} {{ m.label }}</button>
+        </div>
+
+        <div class="layers-section">
+          <div class="layers-section-label">Průhlednost vrstev</div>
+          <div v-for="m in mediaOptions" :key="'op-' + m.key" class="layer-opacity-row">
+            <span class="layer-opacity-icon">{{ m.icon }}</span>
+            <span class="layer-opacity-label">{{ m.label }}</span>
+            <input
+              type="range"
+              min="0" max="1" step="0.05"
+              :value="layerOpacity[m.key]"
+              @input="setLayerOpacity(m.key, Number(($event.target as HTMLInputElement).value))"
+              class="layer-opacity-slider"
+            />
+            <span class="layer-opacity-val">{{ Math.round(layerOpacity[m.key] * 100) }}%</span>
+          </div>
         </div>
 
         <div class="layers-section">
@@ -541,7 +573,7 @@ onUnmounted(() => {
   padding: 12px 14px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
   user-select: none;
-  min-width: 220px;
+  width: 330px;
 }
 
 .layers-title {
@@ -594,6 +626,42 @@ onUnmounted(() => {
   background: var(--accent, #2196F3);
   border-color: var(--accent, #2196F3);
   color: white;
+}
+
+.layer-opacity-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 2px 0;
+}
+
+.layer-opacity-icon {
+  font-size: 13px;
+  width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.layer-opacity-label {
+  font-size: 11px;
+  color: var(--text-secondary, #ccc);
+  min-width: 56px;
+  flex-shrink: 0;
+}
+
+.layer-opacity-slider {
+  flex: 1;
+  height: 4px;
+  accent-color: var(--accent, #2196F3);
+}
+
+.layer-opacity-val {
+  font-size: 10px;
+  font-family: monospace;
+  color: var(--text-muted, #999);
+  min-width: 30px;
+  text-align: right;
 }
 
 .help-panel {

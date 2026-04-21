@@ -61,7 +61,7 @@ function removeMeterBadges(root: HTMLElement) {
 function createMeterBadge(
   svgRoot: SVGSVGElement,
   pos: { x: number; y: number },
-  lines: Array<{ color: string; text: string }>,
+  lines: Array<{ color: string; text: string; opacity: number }>,
   unitId: string,
 ) {
   const lineHeight = 13
@@ -117,6 +117,7 @@ function createMeterBadge(
     dot.setAttribute('cy', String(pos.y + handleHeight + padding + i * lineHeight + lineHeight / 2))
     dot.setAttribute('r', '3')
     dot.setAttribute('fill', line.color)
+    dot.setAttribute('opacity', String(line.opacity))
     dot.setAttribute('pointer-events', 'none')
     g.appendChild(dot)
 
@@ -124,6 +125,7 @@ function createMeterBadge(
     text.setAttribute('x', String(pos.x - badgeWidth / 2 + padding + 12))
     text.setAttribute('y', String(pos.y + handleHeight + padding + i * lineHeight + lineHeight / 2 + 4))
     text.setAttribute('fill', '#ffffff')
+    text.setAttribute('opacity', String(line.opacity))
     text.setAttribute('font-size', '10')
     text.setAttribute('font-family', 'monospace')
     text.setAttribute('pointer-events', 'none')
@@ -201,11 +203,28 @@ function createMeterBadge(
 // --- Overlay filter state (controlled from IndoorView) ---
 let overlayMediaFilter: Set<string> = new Set() // empty = show all
 let overlayVizMode: 'badge' | 'sparkline' | 'heatmap' = 'badge'
+let overlayLayerOpacity: Record<string, number> = {}
 
-function setOverlayFilter(media: Set<string>, viz: 'badge' | 'sparkline' | 'heatmap') {
+function setOverlayFilter(media: Set<string>, viz: 'badge' | 'sparkline' | 'heatmap', opacity?: Record<string, number>) {
   overlayMediaFilter = media
   overlayVizMode = viz
+  if (opacity) overlayLayerOpacity = opacity
   if (svgContainer.value) applyMeterBadges(svgContainer.value)
+}
+
+function getLayerOpacity(mediaKey: string): number {
+  if (Object.keys(overlayLayerOpacity).length === 0) return 1
+  return overlayLayerOpacity[mediaKey] ?? 1
+}
+
+// Reverse lookup: MediaLayer → media filter key
+const layerToMediaKey: Record<string, string> = {
+  water: 'voda',
+  electric: 'elektřina',
+  heat: 'teplo',
+  cool: 'chlad',
+  temperature: 'teplota',
+  other: '',
 }
 
 import type { Unit, MediaLayer } from '@/types/indoor'
@@ -257,15 +276,19 @@ function applyMeterBadges(root: HTMLElement) {
       ? { x: unit.meterBadgePos.x, y: unit.meterBadgePos.y }
       : { x: centroid.x, y: centroid.y }
 
-    // Collect counter values filtered by media
-    const lines: Array<{ color: string; text: string }> = []
+    // Collect counter values filtered by media, with per-layer opacity
+    const lines: Array<{ color: string; text: string; opacity: number }> = []
     for (const objId of unit.cemObjectIds) {
       const counters = cemStore.getCountersForObject(objId)
       for (const c of counters) {
         if (c.isService) continue
         if (!matchesMediaFilter(unit, c.id, c)) continue
+        const layer = getCounterLayer(unit, c.id, c)
+        const mediaKey = layerToMediaKey[layer] ?? ''
+        const opacity = mediaKey ? getLayerOpacity(mediaKey) : 1
+        if (opacity <= 0) continue
         const val = c.lastValue != null ? `${c.lastValue} ${c.unit}` : '--'
-        lines.push({ color: c.color, text: val })
+        lines.push({ color: c.color, text: val, opacity })
       }
     }
 

@@ -1,0 +1,131 @@
+# Živá data z CEM API pro indoor/diagram vrstvu
+
+## Kontext
+
+Aktuálně indoor modul používá mock polling (`mock://water` atd.) pro meter hodnoty. Projekt `cemMenuTest` má kompletní integraci s CEM API pro načítání stromu objektů, měřidel, počitadel a jejich hodnot. Cíl: přenést CEM API služby do hmi-editoru a napojit indoor jednotky na reálná živá data.
+
+## CEM API datový model
+
+```
+Object (API 106, mis_id)        → mit_id=-1000 = install point, mis_do=null = aktivní
+  └── Meter (API 108, me_id)    → me_do=null = aktivní, objectId=mis_id
+       └── Counter (API 107, var_id) → pot_id=typ, lastValue, lastTime
+            └── CounterType (API 222) → unit, color, label
+```
+
+Klíčové API funkce:
+- **106** — strom objektů (depth=99), filtr: `mit_id=-1000` pro install points, `mis_do=null` pro aktivní
+- **108** — měřidla, filtr: `me_do=null` pro aktivní, vazba přes `mis_id` na objekt
+- **107** — počitadla s `var_lastvar` (poslední hodnota) a `var_lasttime`
+- **222** — typy počitadel (jednotky, barvy, názvy)
+- **8** — poslední hodnoty pro pole `var_id[]` (pro polling)
+
+## Plán implementace
+
+### 1. Zkopírovat CEM API konstanty a typy
+
+**Nové soubory:**
+- `src/constants/cemApi.ts` — CEM_API_IDS (106, 107, 108, 222, 8)
+- `src/types/cem.ts` — CemObjectRaw, CemMeterRaw, CemCounterRaw, CounterType, Meter, Counter, CemObject + response wrappery
+
+Zdroj: `cemMenuTest/src/constants/api.ts`, `cemMenuTest/src/types/object.ts`, `cemMenuTest/src/types/meter.ts`, `cemMenuTest/src/constants/counterTypes.ts`
+
+### 2. CEM service layer
+
+**Nové soubory:**
+- `src/services/cem.object.service.ts` — `getObjects()` (API 106), `buildTree()`, filtr `mis_do=null` + `mit_id=-1000`
+- `src/services/cem.meter.service.ts` — `getAllMeters()` (108), `getAllCounters()` (107), filtr `me_do=null`
+- `src/services/cem.reading.service.ts` — `getLastReading(varIds[])` (API 8) pro polling
+
+Vzor: `cemMenuTest/src/services/object.service.ts`, `meter.service.ts`, `reading.service.ts`
+Použít existující `src/services/api.ts` (axios instance s auth interceptorem).
+
+### 3. CEM data store
+
+**Nový soubor:** `src/stores/cemDataStore.ts`
+
+Pinia store s:
+- `objects: CemObject[]` — strom objektů (install points)
+- `meters: Meter[]` — všechna aktivní měřidla
+- `countersByMeterId: Map<number, Counter[]>` — počitadla seskupená dle měřidla
+- `meterIdsByObjectId: Map<number, number[]>` — vazba objekt → měřidla
+- `counterTypes: CounterType[]` — typy počitadel z API 222
+- `liveValues: Map<number, { value: number | null; time: string | null }>` — živé hodnoty dle var_id
+
+Akce:
+- `fetchAll()` — načte 222 → 108+107 paralelně → builduje mapy (vzor: cemMenuTest/stores/counters.ts)
+- `fetchObjects()` — načte strom 106, filtr na aktivní
+- `startPolling(varIds[], interval)` — spustí periodické volání API 8 (getLastReading)
+- `stopPolling()` — zastaví polling
+- `getCountersForObject(mis_id)` — vrátí počitadla pro objekt (přes meter mapu)
+
+### 4. Napojení na indoor jednotky
+
+**Soubor:** `src/stores/buildingStore.ts`
+
+Upravit `MeterConfig` / přidat nový interface pro CEM vazbu:
+- Jednotka (`Unit`) získá volitelné pole `cemObjectId?: number` — vazba na CEM objekt (install point)
+- Místo mock endpointů se polling provádí přes `cemDataStore.startPolling()`
+- `registerAllMeters()` bude delegovat na `cemDataStore` pokud je `cemObjectId` nastaveno
+
+**Soubor:** `src/types/indoor.ts`
+
+Přidat do `Unit`:
+```typescript
+cemObjectId?: number  // CEM API object ID (mis_id) pro vazbu na install point
+```
+
+### 5. UI pro přiřazení CEM objektu k jednotce
+
+**Soubor:** `src/views/admin/AdminUnitDetail.vue`
+
+Přidat sekci "CEM Napojení":
+- Dropdown/vyhledávač stromu CEM objektů (install points kde `mit_id=-1000`, `mis_do=null`)
+- Po výběru zobrazit: nainstalovaná měřidla, jejich počitadla s typy a posledními hodnotami
+- Uložit `cemObjectId` do jednotky
+
+### 6. Živé hodnoty v indoor view
+
+**Soubor:** `src/components/indoor/MeterWidget.vue`
+
+Pokud má jednotka `cemObjectId`:
+- Načíst počitadla přes `cemDataStore.getCountersForObject(cemObjectId)`
+- Zobrazit reálné hodnoty místo mock dat
+- Polling přes API 8 (getLastReading) s konfigurovatelným intervalem
+
+### 7. Dashboard widgety (budoucí rozšíření)
+
+Pro diagram mode: canvas elementy s `DataSource` mohou odkazovat na `var_id` z CEM API.
+Toto je příprava — plná implementace v dalším kroku.
+
+## Klíčové soubory
+
+| Soubor | Změna |
+|---|---|
+| `src/constants/cemApi.ts` | **NOVÝ** — API ID konstanty |
+| `src/types/cem.ts` | **NOVÝ** — CEM typy (objekty, měřidla, počitadla) |
+| `src/services/cem.object.service.ts` | **NOVÝ** — API 106 service |
+| `src/services/cem.meter.service.ts` | **NOVÝ** — API 107, 108, 222 service |
+| `src/services/cem.reading.service.ts` | **NOVÝ** — API 8 (last reading) pro polling |
+| `src/stores/cemDataStore.ts` | **NOVÝ** — CEM data + live values store |
+| `src/types/indoor.ts` | Přidat `cemObjectId` do `Unit` |
+| `src/stores/buildingStore.ts` | Napojit `registerAllMeters()` na CEM data |
+| `src/views/admin/AdminUnitDetail.vue` | UI pro přiřazení CEM objektu |
+| `src/components/indoor/MeterWidget.vue` | Zobrazit reálné CEM hodnoty |
+
+## Pořadí implementace
+
+1. Typy + konstanty (cem.ts, cemApi.ts)
+2. Service layer (object, meter, reading)
+3. cemDataStore (fetch + mapping + polling)
+4. Unit.cemObjectId + buildingStore integrace
+5. AdminUnitDetail UI pro přiřazení
+6. MeterWidget napojení na reálná data
+
+## Ověření
+
+1. Přihlásit se do CEM API (existující auth)
+2. V admin detailu jednotky zvolit CEM objekt → zobrazí se měřidla a počitadla
+3. V indoor view vidět reálné hodnoty místo mock dat
+4. Polling aktualizuje hodnoty periodicky (API 8)
+5. Odpojení CEM objektu → fallback na mock data

@@ -130,12 +130,14 @@ function updateStyle(key: string, value: unknown) {
             Bez
           </label>
         </div>
-        <div class="prop-row">
-          <label>Průhledness</label>
+        <div class="prop-row-stacked">
+          <div class="prop-row-label">
+            <label>Průhlednost</label>
+            <span class="hint">{{ Math.round((single.style.opacity) * 100) }}%</span>
+          </div>
           <input type="range" :value="single.style.opacity" min="0" max="1" step="0.05"
             class="range-input"
             @input="updateStyle('opacity', Number(($event.target as HTMLInputElement).value))" />
-          <span class="hint">{{ Math.round((single.style.opacity) * 100) }}%</span>
         </div>
       </div>
 
@@ -368,8 +370,26 @@ function updateStyle(key: string, value: unknown) {
   padding: 2px 0;
 }
 
+.prop-row-stacked {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 4px;
+}
+
+.prop-row-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.prop-row-label label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
 .range-input {
-  flex: 1;
+  width: 100%;
   height: 16px;
   accent-color: var(--accent);
 }

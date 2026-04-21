@@ -189,7 +189,7 @@ export const useBuildingStore = defineStore('building', () => {
     if (!storageReady.value) return
     try {
       const storage = getStorageService()
-      await storage.settings.set('building-view', {
+      await storage.settings.set('building-view', JSON.parse(JSON.stringify({
         floorPlanOpacity: floorPlanOpacity.value,
         floorPlanScale: floorPlanScale.value,
         floorPlanOffsetX: floorPlanOffsetX.value,
@@ -197,7 +197,7 @@ export const useBuildingStore = defineStore('building', () => {
         floorPlanRotation: floorPlanRotation.value,
         mapCenter: mapCenter.value,
         mapZoom: mapZoom.value,
-      })
+      })))
     } catch (e) {
       console.error('Failed to save building settings:', e)
     }

@@ -3,9 +3,10 @@ import { computed, ref, reactive, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useBuildingStore } from '@/stores/buildingStore'
 import { useCemDataStore } from '@/stores/cemDataStore'
-import type { MeterType, MeterConfig, UnitCategory } from '@/types/indoor'
+import type { MeterType, MeterConfig, UnitCategory, MediaLayer, CounterLayerAssignment } from '@/types/indoor'
 import type { CemObject } from '@/types/cem'
 import { loadFloorplanSvg } from '@/utils/floorplanStorage'
+import { cemService } from '@/services/cem.service'
 import CemTreeLevel from '@/components/admin/CemTreeLevel.vue'
 
 const props = defineProps<{
@@ -34,49 +35,6 @@ const categories: { value: UnitCategory; label: string }[] = [
   { value: 'technical', label: 'Technické' },
 ]
 
-const meterTypes: { type: MeterType; label: string; icon: string; defaultUnit: string }[] = [
-  { type: 'water', label: 'Vodoměr', icon: '\uD83D\uDCA7', defaultUnit: 'm\u00B3' },
-  { type: 'electric', label: 'Elektroměr', icon: '\u26A1', defaultUnit: 'kWh' },
-  { type: 'cooling', label: 'Chlazení', icon: '\uD83D\uDD35', defaultUnit: 'GJ' },
-  { type: 'heating', label: 'Topení', icon: '\uD83D\uDD34', defaultUnit: 'GJ' },
-]
-
-const intervals = [
-  { value: 10000, label: '10s' },
-  { value: 30000, label: '30s' },
-  { value: 60000, label: '1 min' },
-  { value: 300000, label: '5 min' },
-]
-
-// Meter enable toggles
-const meterEnabled = reactive<Record<MeterType, boolean>>({
-  water: !!unit.value?.meters.water,
-  electric: !!unit.value?.meters.electric,
-  cooling: !!unit.value?.meters.cooling,
-  heating: !!unit.value?.meters.heating,
-})
-
-function toggleMeter(mt: MeterType, enabled: boolean) {
-  if (!unit.value) return
-  if (enabled) {
-    const def = meterTypes.find(m => m.type === mt)!
-    unit.value.meters[mt] = {
-      deviceId: '',
-      endpoint: `mock://${mt}`,
-      valueKey: 'value',
-      unit: def.defaultUnit,
-      interval: 30000,
-    }
-  } else {
-    delete unit.value.meters[mt]
-  }
-  meterEnabled[mt] = enabled
-}
-
-function getMeterConfig(mt: MeterType): MeterConfig {
-  return unit.value!.meters[mt]!
-}
-
 // SVG ID verification
 const svgVerifyResult = ref<'ok' | 'not-found' | null>(null)
 
@@ -94,36 +52,6 @@ async function verifySvgId() {
     svgVerifyResult.value = el ? 'ok' : 'not-found'
   } catch {
     svgVerifyResult.value = 'not-found'
-  }
-}
-
-// Test meter endpoint
-const testResults = reactive<Record<string, string>>({})
-
-async function testMeter(mt: MeterType) {
-  const config = unit.value?.meters[mt]
-  if (!config) return
-
-  if (config.endpoint.startsWith('mock://')) {
-    const type = config.endpoint.replace('mock://', '')
-    const mockValues: Record<string, number> = {
-      water: +(0.1 + Math.random() * 2).toFixed(2),
-      electric: +(10 + Math.random() * 50).toFixed(1),
-      cooling: +(0.5 + Math.random() * 3).toFixed(2),
-      heating: +(1 + Math.random() * 5).toFixed(2),
-    }
-    testResults[mt] = `OK: ${mockValues[type] ?? Math.random().toFixed(2)} ${config.unit}`
-    return
-  }
-
-  try {
-    const res = await fetch(config.endpoint)
-    if (!res.ok) { testResults[mt] = `Chyba: HTTP ${res.status}`; return }
-    const data = await res.json()
-    const value = config.valueKey.split('.').reduce((obj: any, k) => obj?.[k], data)
-    testResults[mt] = `OK: ${value} ${config.unit}`
-  } catch (e) {
-    testResults[mt] = `Chyba: ${(e as Error).message}`
   }
 }
 
@@ -254,9 +182,73 @@ function drawSparkline(canvas: HTMLCanvasElement | null, values: number[]) {
   ctx.stroke()
 }
 
-// Load sparklines when cemObjectIds change
+// =====================
+// Layer assignment
+// =====================
+
+const mediaLayerLabels: Record<MediaLayer, { label: string; icon: string }> = {
+  water: { label: 'Voda', icon: '\uD83D\uDCA7' },
+  electric: { label: 'Elektřina', icon: '\u26A1' },
+  heat: { label: 'Teplo', icon: '\uD83D\uDD34' },
+  cool: { label: 'Chlad', icon: '\uD83D\uDD35' },
+  temperature: { label: 'Teplota', icon: '\uD83C\uDF21' },
+  other: { label: 'Ostatní', icon: '\u2022' },
+}
+
+const allMediaLayers: MediaLayer[] = ['water', 'electric', 'heat', 'cool', 'temperature', 'other']
+
+// All CEM counters for this unit (across all assigned objects)
+const allCemCounters = computed(() => {
+  if (!unit.value?.cemObjectIds) return []
+  const counters: Array<{ varId: number; meterId: number; typeName: string; unit: string; color: string; lastValue: number | null }> = []
+  for (const objId of unit.value.cemObjectIds) {
+    for (const c of cemStore.getCountersForObject(objId)) {
+      if (c.isService) continue
+      counters.push({ varId: c.id, meterId: c.meterId, typeName: c.typeName, unit: c.unit, color: c.color, lastValue: c.lastValue })
+    }
+  }
+  return counters
+})
+
+function getLayerForCounter(varId: number): MediaLayer {
+  const assignment = unit.value?.counterLayers?.find(a => a.varId === varId)
+  return assignment?.layer ?? 'other'
+}
+
+function setCounterLayer(varId: number, layer: MediaLayer) {
+  if (!unit.value) return
+  if (!unit.value.counterLayers) unit.value.counterLayers = []
+  const existing = unit.value.counterLayers.find(a => a.varId === varId)
+  if (existing) {
+    existing.layer = layer
+    existing.auto = false
+  } else {
+    unit.value.counterLayers.push({ varId, layer, auto: false })
+  }
+}
+
+function autoAssignLayers() {
+  if (!unit.value?.cemObjectIds) return
+  if (!unit.value.counterLayers) unit.value.counterLayers = []
+
+  for (const c of allCemCounters.value) {
+    const existing = unit.value.counterLayers.find(a => a.varId === c.varId)
+    // Only auto-assign if no manual override exists
+    if (!existing) {
+      const layer = cemService.detectMediaLayer({ typeName: c.typeName, unit: c.unit })
+      unit.value.counterLayers.push({ varId: c.varId, layer, auto: true })
+    }
+  }
+
+  // Remove assignments for counters that no longer exist
+  const validIds = new Set(allCemCounters.value.map(c => c.varId))
+  unit.value.counterLayers = unit.value.counterLayers.filter(a => validIds.has(a.varId))
+}
+
+// Watch cemObjectIds changes — load sparklines + auto-assign layers
 watch(() => unit.value?.cemObjectIds, () => {
   loadAllSparklines()
+  autoAssignLayers()
 }, { immediate: true, deep: true })
 
 function deleteUnit() {
@@ -339,67 +331,41 @@ function deleteUnit() {
       </div>
     </section>
 
-    <!-- Meters -->
-    <section class="form-section">
-      <h3 class="section-title">Konfigurace měřidel</h3>
-      <div v-for="mt in meterTypes" :key="mt.type" class="meter-block">
-        <label class="meter-toggle">
-          <input
-            type="checkbox"
-            :checked="meterEnabled[mt.type]"
-            @change="toggleMeter(mt.type, ($event.target as HTMLInputElement).checked)"
-          />
-          <span class="meter-toggle-icon">{{ mt.icon }}</span>
-          <span class="meter-toggle-label">{{ mt.label }}</span>
-        </label>
-
-        <div v-if="meterEnabled[mt.type] && unit.meters[mt.type]" class="meter-config">
-          <div class="meter-grid">
-            <label class="form-label">
-              <span>Device ID</span>
-              <input v-model="getMeterConfig(mt.type).deviceId" type="text" class="form-input" />
-            </label>
-            <label class="form-label">
-              <span>API endpoint</span>
-              <input v-model="getMeterConfig(mt.type).endpoint" type="text" class="form-input" placeholder="mock://water nebo /api/meters/..." />
-            </label>
-            <label class="form-label">
-              <span>Value key</span>
-              <input v-model="getMeterConfig(mt.type).valueKey" type="text" class="form-input" />
-            </label>
-            <label class="form-label">
-              <span>Jednotka</span>
-              <select v-model="getMeterConfig(mt.type).unit" class="form-input">
-                <option value="m³">m³</option>
-                <option value="kWh">kWh</option>
-                <option value="GJ">GJ</option>
-                <option value="MWh">MWh</option>
+    <!-- Layer assignment -->
+    <section v-if="allCemCounters.length > 0" class="form-section">
+      <h3 class="section-title">Přiřazení do vrstev</h3>
+      <p class="layer-hint">Počitadla jsou automaticky přiřazena dle typu. Můžete změnit vrstvu ručně.</p>
+      <table class="layer-table">
+        <thead>
+          <tr>
+            <th>Počitadlo</th>
+            <th>Hodnota</th>
+            <th>Jednotka</th>
+            <th>Vrstva</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="c in allCemCounters" :key="c.varId" class="layer-row">
+            <td>
+              <span class="cem-counter-dot" :style="{ background: c.color }" />
+              {{ c.typeName }}
+            </td>
+            <td class="layer-value">{{ c.lastValue != null ? c.lastValue : '--' }}</td>
+            <td class="layer-unit">{{ c.unit }}</td>
+            <td>
+              <select
+                class="layer-select"
+                :value="getLayerForCounter(c.varId)"
+                @change="setCounterLayer(c.varId, ($event.target as HTMLSelectElement).value as MediaLayer)"
+              >
+                <option v-for="ml in allMediaLayers" :key="ml" :value="ml">
+                  {{ mediaLayerLabels[ml].icon }} {{ mediaLayerLabels[ml].label }}
+                </option>
               </select>
-            </label>
-            <label class="form-label">
-              <span>Polling interval</span>
-              <select v-model.number="getMeterConfig(mt.type).interval" class="form-input">
-                <option v-for="i in intervals" :key="i.value" :value="i.value">{{ i.label }}</option>
-              </select>
-            </label>
-            <label class="form-label">
-              <span>Alert threshold</span>
-              <input v-model.number="getMeterConfig(mt.type).alertThreshold" type="number" min="0" class="form-input" placeholder="volitelné" />
-            </label>
-            <label class="form-label">
-              <span>Denní limit</span>
-              <input v-model.number="getMeterConfig(mt.type).dailyLimit" type="number" min="0" class="form-input" placeholder="volitelné" />
-            </label>
-            <div class="form-label">
-              <span>&nbsp;</span>
-              <button class="btn btn-sm" @click="testMeter(mt.type)">Test</button>
-              <span v-if="testResults[mt.type]" class="test-result" :class="{ 'test-ok': testResults[mt.type]?.startsWith('OK') }">
-                {{ testResults[mt.type] }}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </section>
 
     <!-- CEM Data Binding -->
@@ -846,6 +812,67 @@ function deleteUnit() {
 .btn-ghost-sm:hover {
   border-color: var(--accent, #2196F3);
   color: var(--text-primary, #eee);
+}
+
+.layer-hint {
+  font-size: 11px;
+  color: var(--text-muted, #999);
+  margin: 0 0 10px;
+}
+
+.layer-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.layer-table th {
+  text-align: left;
+  padding: 6px 10px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted, #999);
+  border-bottom: 1px solid var(--border-color, #333);
+}
+
+.layer-row td {
+  padding: 6px 10px;
+  color: var(--text-secondary, #ccc);
+  border-bottom: 1px solid var(--border-light, #2a2a2a);
+  vertical-align: middle;
+}
+
+.layer-row td:first-child {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.layer-value {
+  font-family: monospace;
+  font-weight: 600;
+  color: var(--text-primary, #eee);
+}
+
+.layer-unit {
+  color: var(--text-muted, #999);
+}
+
+.layer-select {
+  height: 28px;
+  background: var(--input-bg, #2a2a2a);
+  border: 1px solid var(--input-border, #444);
+  border-radius: 5px;
+  color: var(--input-text, #eee);
+  font-size: 12px;
+  padding: 0 6px;
+  cursor: pointer;
+}
+
+.layer-select:focus {
+  outline: none;
+  border-color: var(--accent, #2196F3);
 }
 
 .cem-add-more-label {

@@ -24,29 +24,32 @@ export const useCemDataStore = defineStore('cemData', () => {
     objects.value.filter(o => o.type === 'installPoint')
   )
 
-  /** Set of all object IDs in dataset */
-  const allObjectIds = computed(() => new Set(objects.value.map(o => o.id)))
-
-  /** Build parent→children tree for UI picker */
-  const objectTree = computed(() => {
-    const map = new Map<number | 'root', CemObject[]>()
+  /** Index: parentId → sorted children list (matches cemMenuTest pattern) */
+  const childrenByParentId = computed(() => {
+    const map = new Map<number | undefined, CemObject[]>()
     for (const obj of objects.value) {
-      // If parent is not in dataset, this is a root node
-      const key = (obj.parentId != null && allObjectIds.value.has(obj.parentId))
-        ? obj.parentId
-        : 'root' as const
+      const key = obj.parentId
       const list = map.get(key)
       if (list) list.push(obj)
       else map.set(key, [obj])
     }
+    // Sort each group: sortOrder first, then name
+    for (const list of map.values()) {
+      list.sort((a, b) => {
+        const aSort = a.sortOrder ?? Infinity
+        const bSort = b.sortOrder ?? Infinity
+        if (aSort !== bSort) return aSort - bSort
+        return a.name.localeCompare(b.name, 'cs')
+      })
+    }
     return map
   })
 
-  /** Root objects (those whose parent is not in the dataset) */
-  const rootObjects = computed(() => objectTree.value.get('root') ?? [])
+  /** Root objects (parentId === undefined) */
+  const rootObjects = computed(() => childrenByParentId.value.get(undefined) ?? [])
 
   function getChildObjects(parentId: number): CemObject[] {
-    return objectTree.value.get(parentId) ?? []
+    return childrenByParentId.value.get(parentId) ?? []
   }
 
   // --- Data fetching ---
@@ -194,7 +197,7 @@ export const useCemDataStore = defineStore('cemData', () => {
     error,
     installPoints,
     rootObjects,
-    objectTree,
+    childrenByParentId,
     getChildObjects,
     fetchAll,
     getMetersForObject,

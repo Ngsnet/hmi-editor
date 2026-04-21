@@ -2,6 +2,8 @@ export type FloorId = string
 
 export type MeterType = 'water' | 'electric' | 'cooling' | 'heating'
 
+export type MediaLayer = 'water' | 'electric' | 'heat' | 'cool' | 'temperature' | 'other'
+
 export type UnitCategory =
   | 'fashion' | 'sport' | 'food' | 'services' | 'empty' | 'technical'
 
@@ -13,6 +15,13 @@ export interface MeterConfig {
   interval: number
   alertThreshold?: number
   dailyLimit?: number
+}
+
+/** Maps a CEM counter (var_id) to a media layer. Auto-detected or manually overridden. */
+export interface CounterLayerAssignment {
+  varId: number
+  layer: MediaLayer
+  auto: boolean  // true = auto-detected, false = manually set
 }
 
 export interface Unit {
@@ -28,8 +37,10 @@ export interface Unit {
   contactEmail?: string
   contractStart?: string
   contractEnd?: string
-  meters: Partial<Record<MeterType, MeterConfig>>
+  meters: Partial<Record<MeterType, MeterConfig>>  // legacy — kept for backward compat
   cemObjectIds?: number[]  // CEM API object IDs (mis_id[]) — vazba na install points
+  counterLayers?: CounterLayerAssignment[]  // CEM counter → media layer mapping
+  meterBadgePos?: { x: number; y: number }  // Custom SVG position for meter badge
 }
 
 export interface FloorPlan {

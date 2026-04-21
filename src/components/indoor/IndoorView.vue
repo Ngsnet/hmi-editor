@@ -8,9 +8,11 @@ import UnitOverlay from './UnitOverlay.vue'
 import UnitPanel from './UnitPanel.vue'
 import FloorSwitcher from './FloorSwitcher.vue'
 import GeoRefTool from './GeoRefTool.vue'
+import { useCemDataStore } from '@/stores/cemDataStore'
 
 const buildingStore = useBuildingStore()
 const diagramStore = useDiagramStore()
+const cemStore = useCemDataStore()
 
 const mapEl = ref<HTMLDivElement | null>(null)
 const unitOverlayRef = ref<InstanceType<typeof UnitOverlay> | null>(null)
@@ -18,6 +20,37 @@ const floorPlanRef = ref<InstanceType<typeof FloorPlanLayer> | null>(null)
 const showAdjust = ref(false)
 const showGeoRef = ref(false)
 const showHelp = ref(false)
+const showLayers = ref(false)
+
+// Overlay layer controls
+const overlayMedia = ref<Set<string>>(new Set())
+const overlayViz = ref<'badge' | 'sparkline' | 'heatmap'>('badge')
+
+const mediaOptions = [
+  { key: 'voda', label: 'Voda', icon: '\uD83D\uDCA7' },
+  { key: 'elektřina', label: 'Elektřina', icon: '\u26A1' },
+  { key: 'teplo', label: 'Teplo', icon: '\uD83D\uDD34' },
+  { key: 'chlad', label: 'Chlad', icon: '\uD83D\uDD35' },
+  { key: 'teplota', label: 'Teplota', icon: '\uD83C\uDF21' },
+]
+
+function toggleMedia(key: string) {
+  const s = new Set(overlayMedia.value)
+  if (s.has(key)) s.delete(key)
+  else s.add(key)
+  overlayMedia.value = s
+  unitOverlayRef.value?.setOverlayFilter(s, overlayViz.value)
+}
+
+function setAllMedia() {
+  overlayMedia.value = new Set()
+  unitOverlayRef.value?.setOverlayFilter(new Set(), overlayViz.value)
+}
+
+function setViz(v: 'badge' | 'sparkline' | 'heatmap') {
+  overlayViz.value = v
+  unitOverlayRef.value?.setOverlayFilter(overlayMedia.value, v)
+}
 const mapRef = shallowRef<L.Map | null>(null)
 let map: L.Map | null = null
 
@@ -80,6 +113,11 @@ onMounted(() => {
   })
 
   buildingStore.registerAllMeters()
+
+  // Load CEM data for meter badges on floor plan
+  if (!cemStore.isLoaded && !cemStore.isLoading) {
+    cemStore.fetchAll()
+  }
 })
 
 onUnmounted(() => {
@@ -128,6 +166,9 @@ onUnmounted(() => {
           />
           <span class="ctrl-val">{{ Math.round(buildingStore.floorPlanOpacity * 100) }}%</span>
         </label>
+        <button class="adjust-toggle" :class="{ active: showLayers }" @click="showLayers = !showLayers" title="Overlay vrstvy">
+          &#9776;
+        </button>
         <button class="adjust-toggle" :class="{ active: showGeoRef }" @click="showGeoRef = !showGeoRef" title="Geo-reference (2-bodové zarovnání s mapou)">
           &#9906;
         </button>
@@ -137,6 +178,34 @@ onUnmounted(() => {
         <button class="adjust-toggle" :class="{ active: showHelp }" @click="showHelp = !showHelp" title="Nápověda / postup">
           ?
         </button>
+      </div>
+
+      <!-- Layers dropdown -->
+      <div v-if="showLayers" class="layers-panel">
+        <div class="layers-title">Overlay vrstvy</div>
+
+        <div class="layers-section">
+          <div class="layers-section-label">Médium</div>
+          <button
+            class="layer-chip"
+            :class="{ active: overlayMedia.size === 0 }"
+            @click="setAllMedia"
+          >Vše</button>
+          <button
+            v-for="m in mediaOptions"
+            :key="m.key"
+            class="layer-chip"
+            :class="{ active: overlayMedia.has(m.key) }"
+            @click="toggleMedia(m.key)"
+          >{{ m.icon }} {{ m.label }}</button>
+        </div>
+
+        <div class="layers-section">
+          <div class="layers-section-label">Vizualizace</div>
+          <button class="layer-chip" :class="{ active: overlayViz === 'badge' }" @click="setViz('badge')">Badge hodnot</button>
+          <button class="layer-chip" :class="{ active: overlayViz === 'sparkline' }" @click="setViz('sparkline')">Sparkline</button>
+          <button class="layer-chip" :class="{ active: overlayViz === 'heatmap' }" @click="setViz('heatmap')">Heatmapa</button>
+        </div>
       </div>
 
       <!-- Adjust panel -->
@@ -459,6 +528,72 @@ onUnmounted(() => {
   font-size: 12px;
   color: #48bb78;
   font-weight: 600;
+}
+
+.layers-panel {
+  position: absolute;
+  bottom: 60px;
+  left: 16px;
+  z-index: 600;
+  background: var(--bg-primary, #1e1e1e);
+  border: 1px solid var(--border-color, #333);
+  border-radius: 8px;
+  padding: 12px 14px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+  user-select: none;
+  min-width: 220px;
+}
+
+.layers-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent, #2196F3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.layers-section {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.layers-section:last-child {
+  margin-bottom: 0;
+}
+
+.layers-section-label {
+  width: 100%;
+  font-size: 10px;
+  color: var(--text-muted, #999);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+
+.layer-chip {
+  padding: 4px 10px;
+  border: 1px solid var(--border-color, #444);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-muted, #999);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.layer-chip:hover {
+  border-color: var(--accent, #2196F3);
+  color: var(--text-primary, #eee);
+}
+
+.layer-chip.active {
+  background: var(--accent, #2196F3);
+  border-color: var(--accent, #2196F3);
+  color: white;
 }
 
 .help-panel {

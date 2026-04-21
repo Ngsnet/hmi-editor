@@ -4,7 +4,7 @@
 
 export interface CemObjectRaw {
   mis_id: number
-  mis_idp: number
+  mis_idp: number | null
   mis_nazev: string
   mis_nazev2: string | null
   mis_od: number
@@ -32,6 +32,7 @@ export interface CemObject {
   name2?: string
   type: 'installPoint' | 'location'
   parentId?: number
+  sortOrder?: number | null
   path?: string
   activeSince?: string
   activeUntil?: string

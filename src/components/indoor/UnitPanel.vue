@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import type { Unit, MeterType } from '@/types/indoor'
 import MeterWidget from './MeterWidget.vue'
 import { useIndoorMap } from '@/composables/useIndoorMap'
+import { useCemDataStore } from '@/stores/cemDataStore'
 
 const props = defineProps<{
   unit: Unit
@@ -13,6 +14,20 @@ const emit = defineEmits<{
 }>()
 
 const { exportUnitReport } = useIndoorMap()
+const cemStore = useCemDataStore()
+
+const hasCemBinding = computed(() =>
+  props.unit.cemObjectIds && props.unit.cemObjectIds.length > 0
+)
+
+const cemMetersGrouped = computed(() => {
+  const ids = props.unit.cemObjectIds
+  if (!ids) return []
+  return ids.map(objId => ({
+    object: cemStore.objects.find(o => o.id === objId),
+    meters: cemStore.getMetersForObject(objId),
+  })).filter(g => g.object)
+})
 
 const categoryLabels: Record<string, string> = {
   fashion: 'Fashion',
@@ -65,6 +80,28 @@ const contractEndFormatted = computed(() => {
       </template>
       <div v-else class="no-data">
         Žádná měřidla nejsou nakonfigurována
+      </div>
+    </div>
+
+    <!-- CEM live meters -->
+    <div v-if="hasCemBinding" class="panel-section">
+      <div class="section-title">CEM měřidla</div>
+      <div v-for="group in cemMetersGrouped" :key="group.object!.id" class="cem-group">
+        <div class="cem-group-name">{{ group.object!.name }}</div>
+        <div v-for="meter in group.meters" :key="meter.id" class="cem-meter">
+          <div class="cem-meter-head">
+            <span class="cem-meter-type">{{ meter.meterTypeName ?? 'Měřidlo' }}</span>
+            <span class="cem-meter-sn">SN: {{ meter.serial ?? '—' }}</span>
+          </div>
+          <div v-for="counter in cemStore.getCountersForMeter(meter.id)" :key="counter.id" class="cem-counter">
+            <span class="cem-counter-dot" :style="{ background: counter.color }" />
+            <span class="cem-counter-label">{{ counter.typeName }}</span>
+            <span class="cem-counter-val">
+              <template v-if="counter.lastValue != null">{{ counter.lastValue }} {{ counter.unit }}</template>
+              <template v-else>--</template>
+            </span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -240,5 +277,70 @@ const contractEndFormatted = computed(() => {
 .close-action:hover {
   background: #b91c1c !important;
   border-color: #b91c1c !important;
+}
+
+.cem-group {
+  margin-bottom: 8px;
+}
+
+.cem-group-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted, #999);
+  margin-bottom: 4px;
+}
+
+.cem-meter {
+  border: 1px solid var(--border-color, #333);
+  border-radius: 6px;
+  margin-bottom: 6px;
+  overflow: hidden;
+}
+
+.cem-meter-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  background: var(--bg-secondary, #161616);
+  font-size: 12px;
+}
+
+.cem-meter-type {
+  font-weight: 600;
+  color: var(--text-primary, #eee);
+}
+
+.cem-meter-sn {
+  font-family: monospace;
+  font-size: 10px;
+  color: var(--text-muted, #999);
+}
+
+.cem-counter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  border-top: 1px solid var(--border-light, #2a2a2a);
+}
+
+.cem-counter-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.cem-counter-label {
+  flex: 1;
+  color: var(--text-secondary, #ccc);
+}
+
+.cem-counter-val {
+  font-family: monospace;
+  font-weight: 600;
+  color: var(--text-primary, #eee);
 }
 </style>

@@ -33,10 +33,11 @@ function getCounterType(potId: number): CemCounterType | undefined {
 function mapRawObject(raw: CemObjectRaw): CemObject {
   return {
     id: raw.mis_id,
-    name: raw.mis_nazev?.trim() || '?',
+    name: raw.mis_nazev?.trim() || '\u2302 Home',
     name2: raw.mis_nazev2 ?? undefined,
     type: raw.mit_id === -1000 ? 'installPoint' : 'location',
-    parentId: raw.mis_idp,
+    parentId: raw.mis_idp ?? undefined,  // null from API → undefined = root
+    sortOrder: raw.mis_sort,
     path: raw.mis_cesta,
     activeSince: raw.mis_od ? new Date(raw.mis_od).toISOString().slice(0, 10) : undefined,
     activeUntil: raw.mis_do ? new Date(raw.mis_do).toISOString().slice(0, 10) : undefined,
@@ -112,13 +113,22 @@ export const cemService = {
 
   /**
    * Fetch all objects (API 106). Filters to active only (mis_do=null).
+   * Root objects have mis_idp=null → parentId=undefined.
    */
   async fetchObjects(): Promise<CemObject[]> {
     const { data } = await api.get<CemObjectsResponse>('', {
       params: { id: CEM_API_IDS.OBJECTS, depth: 99 },
     })
+
+    // Filter active, deduplicate
+    const seen = new Set<number>()
     return data.data
-      .filter(r => r.mis_do === null)
+      .filter(r => {
+        if (r.mis_do !== null) return false
+        if (seen.has(r.mis_id)) return false
+        seen.add(r.mis_id)
+        return true
+      })
       .map(mapRawObject)
   },
 
@@ -182,4 +192,22 @@ export const cemService = {
   },
 
   getCounterType,
+
+  /**
+   * Auto-detect media layer for a counter based on its type name and unit.
+   */
+  detectMediaLayer(counter: { typeName: string; unit: string }): 'water' | 'electric' | 'heat' | 'cool' | 'temperature' | 'other' {
+    const name = counter.typeName.toLowerCase()
+    const unit = counter.unit.toLowerCase()
+
+    if (unit.includes('m³') || unit.includes('m3') || name.includes('water') || name.includes('vod')) return 'water'
+    if (unit.includes('kwh') || unit.includes('mwh') || name.includes('elec') || name.includes('elek')) return 'electric'
+    if (unit.includes('°c') || unit.includes('°f') || name.includes('temp') || name.includes('tepl')) return 'temperature'
+    if (unit.includes('gj') || unit.includes('mwh')) {
+      if (name.includes('cool') || name.includes('chlaz') || name.includes('chlad')) return 'cool'
+      if (name.includes('heat') || name.includes('top') || name.includes('tepl')) return 'heat'
+      return 'heat' // GJ default
+    }
+    return 'other'
+  },
 }

@@ -22,6 +22,8 @@ export interface CounterLayerAssignment {
   varId: number
   layer: MediaLayer
   auto: boolean  // true = auto-detected, false = manually set
+  pos?: { x: number; y: number }  // custom SVG position (if dragged)
+  rotation?: number  // text rotation in degrees
 }
 
 export interface Unit {

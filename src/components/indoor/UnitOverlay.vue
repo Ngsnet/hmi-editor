@@ -58,143 +58,139 @@ function removeMeterBadges(root: HTMLElement) {
   root.querySelectorAll(`.${BADGE_CLASS}`).forEach(el => el.remove())
 }
 
-function createMeterBadge(
+/**
+ * Create a single counter badge — draggable + Ctrl+drag to rotate.
+ * Each counter has its own position and rotation stored in CounterLayerAssignment.
+ */
+function createCounterBadge(
   svgRoot: SVGSVGElement,
   pos: { x: number; y: number },
-  lines: Array<{ color: string; text: string; opacity: number }>,
+  rotation: number,
+  color: string,
+  text: string,
+  opacity: number,
   unitId: string,
+  varId: number,
 ) {
-  const lineHeight = 13
-  const padding = 4
-  const handleHeight = 10
-  const totalHeight = lines.length * lineHeight + padding * 2
-  const badgeWidth = 80
+  const badgeW = 78
+  const badgeH = 16
 
   const g = document.createElementNS(NS, 'g')
   g.setAttribute('class', BADGE_CLASS)
-  g.setAttribute('data-unit-id', unitId)
+  g.setAttribute('data-var-id', String(varId))
+  g.setAttribute('transform', `translate(${pos.x}, ${pos.y}) rotate(${rotation})`)
 
-  // Drag handle bar (top)
-  const handle = document.createElementNS(NS, 'rect')
-  handle.setAttribute('x', String(pos.x - badgeWidth / 2))
-  handle.setAttribute('y', String(pos.y))
-  handle.setAttribute('width', String(badgeWidth))
-  handle.setAttribute('height', String(handleHeight))
-  handle.setAttribute('rx', '4')
-  handle.setAttribute('fill', 'rgba(255,255,255,0.15)')
-  handle.setAttribute('cursor', 'grab')
-  handle.setAttribute('pointer-events', 'all')
-  g.appendChild(handle)
-
-  // Grip dots on handle
-  for (let i = 0; i < 3; i++) {
-    const dot = document.createElementNS(NS, 'circle')
-    dot.setAttribute('cx', String(pos.x - 6 + i * 6))
-    dot.setAttribute('cy', String(pos.y + handleHeight / 2))
-    dot.setAttribute('r', '1.2')
-    dot.setAttribute('fill', 'rgba(255,255,255,0.5)')
-    dot.setAttribute('pointer-events', 'none')
-    g.appendChild(dot)
-  }
-
-  // Background rect
+  // Background
   const bg = document.createElementNS(NS, 'rect')
-  bg.setAttribute('x', String(pos.x - badgeWidth / 2))
-  bg.setAttribute('y', String(pos.y + handleHeight))
-  bg.setAttribute('width', String(badgeWidth))
-  bg.setAttribute('height', String(totalHeight))
-  bg.setAttribute('rx', '4')
+  bg.setAttribute('x', String(-badgeW / 2))
+  bg.setAttribute('y', String(-badgeH / 2))
+  bg.setAttribute('width', String(badgeW))
+  bg.setAttribute('height', String(badgeH))
+  bg.setAttribute('rx', '3')
   bg.setAttribute('fill', 'rgba(0,0,0,0.75)')
   bg.setAttribute('stroke', 'rgba(255,255,255,0.2)')
   bg.setAttribute('stroke-width', '0.5')
-  bg.setAttribute('pointer-events', 'none')
+  bg.setAttribute('cursor', 'grab')
+  bg.setAttribute('pointer-events', 'all')
   g.appendChild(bg)
 
-  // Value lines
-  lines.forEach((line, i) => {
-    const dot = document.createElementNS(NS, 'circle')
-    dot.setAttribute('cx', String(pos.x - badgeWidth / 2 + padding + 4))
-    dot.setAttribute('cy', String(pos.y + handleHeight + padding + i * lineHeight + lineHeight / 2))
-    dot.setAttribute('r', '3')
-    dot.setAttribute('fill', line.color)
-    dot.setAttribute('opacity', String(line.opacity))
-    dot.setAttribute('pointer-events', 'none')
-    g.appendChild(dot)
+  // Color dot
+  const dot = document.createElementNS(NS, 'circle')
+  dot.setAttribute('cx', String(-badgeW / 2 + 8))
+  dot.setAttribute('cy', '0')
+  dot.setAttribute('r', '3')
+  dot.setAttribute('fill', color)
+  dot.setAttribute('opacity', String(opacity))
+  dot.setAttribute('pointer-events', 'none')
+  g.appendChild(dot)
 
-    const text = document.createElementNS(NS, 'text')
-    text.setAttribute('x', String(pos.x - badgeWidth / 2 + padding + 12))
-    text.setAttribute('y', String(pos.y + handleHeight + padding + i * lineHeight + lineHeight / 2 + 4))
-    text.setAttribute('fill', '#ffffff')
-    text.setAttribute('opacity', String(line.opacity))
-    text.setAttribute('font-size', '10')
-    text.setAttribute('font-family', 'monospace')
-    text.setAttribute('pointer-events', 'none')
-    text.textContent = line.text
-    g.appendChild(text)
-  })
+  // Value text
+  const label = document.createElementNS(NS, 'text')
+  label.setAttribute('x', String(-badgeW / 2 + 16))
+  label.setAttribute('y', '4')
+  label.setAttribute('fill', '#ffffff')
+  label.setAttribute('opacity', String(opacity))
+  label.setAttribute('font-size', '10')
+  label.setAttribute('font-family', 'monospace')
+  label.setAttribute('pointer-events', 'none')
+  label.textContent = text
+  g.appendChild(label)
 
-  // Drag logic
+  // Drag + rotate logic
   let dragging = false
+  let rotating = false
   let dragStartX = 0
   let dragStartY = 0
-  let badgeStartX = pos.x
-  let badgeStartY = pos.y
+  let startPosX = pos.x
+  let startPosY = pos.y
+  let startRotation = rotation
 
   function toSvgPoint(e: MouseEvent): { x: number; y: number } {
     const ctm = svgRoot.getScreenCTM()
     if (!ctm) return { x: 0, y: 0 }
-    const pt = new DOMPoint(e.clientX, e.clientY)
-    const svgPt = pt.matrixTransform(ctm.inverse())
-    return { x: svgPt.x, y: svgPt.y }
+    return new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse())
   }
 
-  function onDragStart(e: MouseEvent) {
+  function onStart(e: MouseEvent) {
     e.stopPropagation()
     e.preventDefault()
-    dragging = true
     const svgPt = toSvgPoint(e)
     dragStartX = svgPt.x
     dragStartY = svgPt.y
-    badgeStartX = pos.x
-    badgeStartY = pos.y
-    handle.setAttribute('cursor', 'grabbing')
-    document.addEventListener('mousemove', onDragMove)
-    document.addEventListener('mouseup', onDragEnd)
+    startPosX = pos.x
+    startPosY = pos.y
+    startRotation = rotation
+
+    if (e.ctrlKey || e.metaKey) {
+      rotating = true
+      bg.setAttribute('cursor', 'crosshair')
+    } else {
+      dragging = true
+      bg.setAttribute('cursor', 'grabbing')
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onEnd)
   }
 
-  function onDragMove(e: MouseEvent) {
-    if (!dragging) return
+  function onMove(e: MouseEvent) {
     const svgPt = toSvgPoint(e)
-    const dx = svgPt.x - dragStartX
-    const dy = svgPt.y - dragStartY
-    pos.x = badgeStartX + dx
-    pos.y = badgeStartY + dy
-    g.setAttribute('transform', `translate(${dx}, ${dy})`)
+    if (dragging) {
+      pos.x = startPosX + (svgPt.x - dragStartX)
+      pos.y = startPosY + (svgPt.y - dragStartY)
+      g.setAttribute('transform', `translate(${pos.x}, ${pos.y}) rotate(${rotation})`)
+    } else if (rotating) {
+      const angle = Math.atan2(svgPt.y - pos.y, svgPt.x - pos.x) * (180 / Math.PI)
+      const startAngle = Math.atan2(dragStartY - startPosY, dragStartX - startPosX) * (180 / Math.PI)
+      rotation = startRotation + (angle - startAngle)
+      g.setAttribute('transform', `translate(${pos.x}, ${pos.y}) rotate(${rotation})`)
+    }
   }
 
-  function onDragEnd(e: MouseEvent) {
-    if (!dragging) return
+  function onEnd() {
     dragging = false
-    handle.setAttribute('cursor', 'grab')
-    document.removeEventListener('mousemove', onDragMove)
-    document.removeEventListener('mouseup', onDragEnd)
+    rotating = false
+    bg.setAttribute('cursor', 'grab')
+    document.removeEventListener('mousemove', onMove)
+    document.removeEventListener('mouseup', onEnd)
 
-    // Save position to unit
+    // Persist position + rotation
     const unit = buildingStore.building.units.find(u => u.id === unitId)
     if (unit) {
-      unit.meterBadgePos = { x: pos.x, y: pos.y }
+      if (!unit.counterLayers) unit.counterLayers = []
+      const assignment = unit.counterLayers.find(a => a.varId === varId)
+      if (assignment) {
+        assignment.pos = { x: pos.x, y: pos.y }
+        assignment.rotation = Math.round(rotation * 10) / 10
+      }
     }
-
-    // Rebuild badge at new position (removes transform hack)
-    if (svgContainer.value) applyMeterBadges(svgContainer.value)
   }
 
-  handle.addEventListener('mousedown', onDragStart)
+  bg.addEventListener('mousedown', onStart)
 
   cleanupHandlers.push(() => {
-    handle.removeEventListener('mousedown', onDragStart)
-    document.removeEventListener('mousemove', onDragMove)
-    document.removeEventListener('mouseup', onDragEnd)
+    bg.removeEventListener('mousedown', onStart)
+    document.removeEventListener('mousemove', onMove)
+    document.removeEventListener('mouseup', onEnd)
   })
 
   svgRoot.appendChild(g)
@@ -271,29 +267,30 @@ function applyMeterBadges(root: HTMLElement) {
     const centroid = getElementCentroid(el)
     if (!centroid) continue
 
-    // Use custom position or fallback to centroid
-    const pos = unit.meterBadgePos
-      ? { x: unit.meterBadgePos.x, y: unit.meterBadgePos.y }
-      : { x: centroid.x, y: centroid.y }
-
-    // Collect counter values filtered by media, with per-layer opacity
-    const lines: Array<{ color: string; text: string; opacity: number }> = []
+    // Each counter gets its own badge
+    let offsetIndex = 0
     for (const objId of unit.cemObjectIds) {
       const counters = cemStore.getCountersForObject(objId)
       for (const c of counters) {
         if (c.isService) continue
         if (!matchesMediaFilter(unit, c.id, c)) continue
+
         const layer = getCounterLayer(unit, c.id, c)
         const mediaKey = layerToMediaKey[layer] ?? ''
         const opacity = mediaKey ? getLayerOpacity(mediaKey) : 1
         if (opacity <= 0) continue
-        const val = c.lastValue != null ? `${c.lastValue} ${c.unit}` : '--'
-        lines.push({ color: c.color, text: val, opacity })
-      }
-    }
 
-    if (lines.length > 0) {
-      createMeterBadge(svgRoot, pos, lines.slice(0, 6), unit.id)
+        // Get saved position/rotation or default stacked below centroid
+        const assignment = unit.counterLayers?.find(a => a.varId === c.id)
+        const pos = assignment?.pos
+          ? { x: assignment.pos.x, y: assignment.pos.y }
+          : { x: centroid.x, y: centroid.y + 12 + offsetIndex * 20 }
+        const rotation = assignment?.rotation ?? 0
+
+        const val = c.lastValue != null ? `${c.lastValue} ${c.unit}` : '--'
+        createCounterBadge(svgRoot, pos, rotation, c.color, val, opacity, unit.id, c.id)
+        offsetIndex++
+      }
     }
   }
 }

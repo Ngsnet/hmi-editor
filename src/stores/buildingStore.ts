@@ -1,13 +1,13 @@
 import { defineStore } from 'pinia'
 import { ref, reactive, computed, watch } from 'vue'
-import type { Building, FloorId, MeterType, Unit } from '@/types/indoor'
+import type { Building, FloorId, GeoRef, MeterType, Unit } from '@/types/indoor'
 import { demoBuilding } from '@/data/demoBuilding'
 import { getStorageService } from '@/services/storageFactory'
 
 export const useBuildingStore = defineStore('building', () => {
   const building = ref<Building>(JSON.parse(JSON.stringify(demoBuilding)))
   const selectedUnitId = ref<string | null>(null)
-  const activeFloor = ref<FloorId>('GL')
+  const activeFloor = ref<FloorId>('')
   const meterValues = reactive<Map<string, number | null>>(new Map())
   const meterAlerts = reactive<Set<string>>(new Set())
   const storageReady = ref(false)
@@ -135,9 +135,33 @@ export const useBuildingStore = defineStore('building', () => {
     pollingIntervals.clear()
   }
 
+  const activeFloorPlan = computed(() =>
+    building.value.floors.find(f => f.id === activeFloor.value)
+  )
+
+  const activeGeoRef = computed(() => activeFloorPlan.value?.geoRef)
+
+  const hasGeoRef = computed(() => !!activeGeoRef.value)
+
+  function setGeoRef(geoRef: [GeoRef, GeoRef]) {
+    const floor = building.value.floors.find(f => f.id === activeFloor.value)
+    if (floor) {
+      floor.geoRef = geoRef
+      saveBuilding()
+    }
+  }
+
+  function clearGeoRef() {
+    const floor = building.value.floors.find(f => f.id === activeFloor.value)
+    if (floor) {
+      floor.geoRef = undefined
+      saveBuilding()
+    }
+  }
+
   function loadBuilding(b: Building) {
     building.value = b
-    activeFloor.value = b.floors[0]?.id ?? 'GL'
+    activeFloor.value = b.floors[0]?.id ?? ''
     selectedUnitId.value = null
     meterValues.clear()
     meterAlerts.clear()
@@ -187,7 +211,7 @@ export const useBuildingStore = defineStore('building', () => {
       const all = await storage.buildings.getAll()
       if (all.length > 0 && all[0]) {
         building.value = all[0]
-        activeFloor.value = all[0].floors[0]?.id ?? 'GL'
+        activeFloor.value = all[0].floors[0]?.id ?? ''
       }
 
       // Load view settings
@@ -220,9 +244,40 @@ export const useBuildingStore = defineStore('building', () => {
     await loadFromStorage()
   }
 
-  function resetToDemo() {
+  async function resetToDemo() {
+    // Clear all building data from IndexedDB
+    try {
+      const storage = getStorageService()
+      const allBuildings = await storage.buildings.getAll()
+      await storage.buildings.bulkDelete(allBuildings.map(b => b.id))
+      await storage.settings.delete('building-view')
+
+      // Clear all floorplan SVGs from blobs
+      const allKeys = await storage.blobs.getAllKeys()
+      for (const key of allKeys) {
+        if (key.startsWith('floorplan:')) {
+          await storage.blobs.delete(key)
+        }
+      }
+    } catch (e) {
+      console.error('Failed to clear storage:', e)
+    }
+
+    // Reset to empty default
     building.value = JSON.parse(JSON.stringify(demoBuilding))
-    saveBuilding()
+    activeFloor.value = building.value.floors[0]?.id ?? ''
+    selectedUnitId.value = null
+    meterValues.clear()
+    meterAlerts.clear()
+    floorPlanOpacity.value = 0.85
+    floorPlanScale.value = 1
+    floorPlanOffsetX.value = 0
+    floorPlanOffsetY.value = 0
+    floorPlanRotation.value = 0
+    mapCenter.value = null
+    mapZoom.value = null
+
+    await saveBuilding()
   }
 
   // Auto-save with debounce
@@ -261,6 +316,10 @@ export const useBuildingStore = defineStore('building', () => {
     getUnitStatus,
     registerAllMeters,
     unregisterAllMeters,
+    activeGeoRef,
+    hasGeoRef,
+    setGeoRef,
+    clearGeoRef,
     loadBuilding,
     initStorage,
     resetToDemo,

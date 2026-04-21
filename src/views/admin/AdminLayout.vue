@@ -3,9 +3,9 @@ import { useBuildingStore } from '@/stores/buildingStore'
 
 const buildingStore = useBuildingStore()
 
-function resetData() {
-  if (confirm('Opravdu obnovit demo data? Všechny změny budou ztraceny.')) {
-    buildingStore.resetToDemo()
+async function resetData() {
+  if (confirm('Opravdu smazat všechna data? Budou odstraněna všechna patra, jednotky a nahrané půdorysy.')) {
+    await buildingStore.resetToDemo()
     location.reload()
   }
 }
@@ -31,7 +31,7 @@ function resetData() {
       <div class="sidebar-footer">
         <button class="nav-link reset-link" @click="resetData">
           <span class="nav-icon">&#8635;</span>
-          Reset na demo data
+          Reset na výchozí
         </button>
         <router-link :to="{ name: 'editor' }" class="nav-link back-link">
           <span class="nav-icon">&larr;</span>

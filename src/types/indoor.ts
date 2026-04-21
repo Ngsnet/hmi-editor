@@ -40,6 +40,7 @@ export interface FloorPlan {
   rentableArea: number
   chargeableArea: number
   svgUnitsPerMeter: number
+  geoRef?: [GeoRef, GeoRef]
 }
 
 export interface GeoRef {

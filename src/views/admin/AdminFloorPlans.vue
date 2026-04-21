@@ -8,7 +8,7 @@ import type { FloorId, Unit } from '@/types/indoor'
 const buildingStore = useBuildingStore()
 const router = useRouter()
 
-const selectedFloor = ref<FloorId>(buildingStore.sortedFloors[0]?.id ?? 'GL')
+const selectedFloor = ref<FloorId>(buildingStore.sortedFloors[0]?.id ?? '')
 const svgPreview = ref<string>('')
 const foundIds = ref<string[]>([])
 const uploading = ref(false)
@@ -135,10 +135,12 @@ const missingInSvg = computed(() =>
   expectedUnitIds.value.filter(id => !foundIds.value.includes(id))
 )
 
-// Unit assigned to the clicked SVG element
+// Unit assigned to the clicked SVG element (on current floor only)
 const assignedUnit = computed<Unit | null>(() => {
   if (!clickedSvgId.value) return null
-  return buildingStore.building.units.find(u => u.svgPathId === clickedSvgId.value) ?? null
+  return buildingStore.building.units.find(
+    u => u.svgPathId === clickedSvgId.value && u.floor === selectedFloor.value
+  ) ?? null
 })
 
 // All unit IDs on this floor (for the assign dropdown)
@@ -563,36 +565,20 @@ async function uploadFloorPlan() {
   }
 }
 
-// Load existing SVG preview - first try localStorage, then fetch from public/
+// Load existing SVG preview from IndexedDB
 async function loadExisting() {
   if (!currentFloor.value) return
   svgPreview.value = ''
   foundIds.value = []
   clearSelection()
 
-  // Try IndexedDB first (uploaded SVGs)
   const stored = await loadFloorplanSvg(selectedFloor.value)
   if (stored) {
     svgPreview.value = stored
     parseSvgIds(stored)
     await nextTick()
     setupClickHandlers()
-    return
   }
-
-  // Fallback to public/ file
-  try {
-    const basePath = currentFloor.value.svgPath.startsWith('/')
-      ? currentFloor.value.svgPath.slice(1)
-      : currentFloor.value.svgPath
-    const res = await fetch(`${import.meta.env.BASE_URL}${basePath}`)
-    if (!res.ok) return
-    const text = await res.text()
-    svgPreview.value = text
-    parseSvgIds(text)
-    await nextTick()
-    setupClickHandlers()
-  } catch { /* no existing file */ }
 }
 
 // Recalculate area when scale changes
@@ -1006,13 +992,20 @@ async function finishDrawing() {
   const svgRoot = svgPreviewEl.value?.querySelector('svg')
   if (!svgRoot) return
 
-  // Generate unit ID
-  const existingIds = foundIds.value
-    .filter(id => id.startsWith('unit-'))
+  // Generate unit ID — prefixed with floor ID for cross-floor uniqueness
+  const floorPrefix = selectedFloor.value.toLowerCase().replace(/\s+/g, '-')
+  const floorPattern = new RegExp(`^unit-${floorPrefix}-(\\d+)$`)
+  const existingNums = foundIds.value
+    .map(id => floorPattern.exec(id))
+    .filter((m): m is RegExpExecArray => m !== null)
+    .map(m => parseInt(m[1]!, 10))
+  // Also check simple unit-XX pattern for backwards compatibility
+  const simpleNums = foundIds.value
+    .filter(id => /^unit-\d+$/.test(id))
     .map(id => parseInt(id.replace('unit-', ''), 10))
     .filter(n => !isNaN(n))
-  const nextNum = (Math.max(0, ...existingIds) + 1)
-  const unitSvgId = `unit-${String(nextNum).padStart(2, '0')}`
+  const nextNum = Math.max(0, ...existingNums, ...simpleNums) + 1
+  const unitSvgId = `unit-${floorPrefix}-${String(nextNum).padStart(2, '0')}`
 
   // Clear preview
   clearDrawPreview()
@@ -1033,9 +1026,14 @@ async function finishDrawing() {
   text.setAttribute('x', String(+cx.toFixed(1)))
   text.setAttribute('y', String(+cy.toFixed(1)))
   text.setAttribute('text-anchor', 'middle')
-  text.setAttribute('fill', '#666')
-  text.setAttribute('font-size', '12')
+  text.setAttribute('fill', '#1a1a1a')
+  text.setAttribute('font-size', '14')
+  text.setAttribute('font-weight', '600')
   text.setAttribute('font-family', 'sans-serif')
+  text.setAttribute('paint-order', 'stroke')
+  text.setAttribute('stroke', '#ffffff')
+  text.setAttribute('stroke-width', '3')
+  text.setAttribute('stroke-linejoin', 'round')
   text.textContent = unitSvgId
   svgRoot.appendChild(text)
 

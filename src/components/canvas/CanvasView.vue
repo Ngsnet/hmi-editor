@@ -669,35 +669,6 @@ const gridVisible = computed(() => diagramStore.diagram.gridVisible)
 const backgroundColor = computed(() => diagramStore.diagram.backgroundColor)
 const showMapBackground = computed(() => diagramStore.diagram.mapSettings?.showAsBackground ?? false)
 
-// Add demo elements if diagram is empty
-onMounted(() => {
-  if (diagramStore.diagram.elements.length === 0) {
-    const layerId = diagramStore.diagram.layers[0]?.id ?? ''
-    const defaultStyle = { fill: '#ffffff', stroke: '#333333', strokeWidth: 2, opacity: 1 }
-
-    diagramStore.addElement({
-      type: 'rect', x: 100, y: 100, width: 200, height: 120,
-      rotation: 0, layerId, locked: false, visible: true,
-      style: { ...defaultStyle, fill: '#4a90d9' },
-    })
-    diagramStore.addElement({
-      type: 'ellipse', x: 400, y: 80, width: 160, height: 160,
-      rotation: 0, layerId, locked: false, visible: true,
-      style: { ...defaultStyle, fill: '#e8744f' },
-    })
-    diagramStore.addElement({
-      type: 'rect', x: 200, y: 300, width: 300, height: 80,
-      rotation: 0, layerId, locked: false, visible: true,
-      style: { ...defaultStyle, fill: '#5cb85c' },
-    })
-    diagramStore.addElement({
-      type: 'line', x: 100, y: 450, width: 400, height: 0,
-      rotation: 0, layerId, locked: false, visible: true,
-      points: [{ x: 100, y: 450 }, { x: 500, y: 300 }],
-      style: { ...defaultStyle, fill: 'none', strokeWidth: 3 },
-    })
-  }
-})
 </script>
 
 <template>

@@ -3,6 +3,7 @@ import { computed, ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useBuildingStore } from '@/stores/buildingStore'
 import type { MeterType, MeterConfig, UnitCategory } from '@/types/indoor'
+import { loadFloorplanSvg } from '@/utils/floorplanStorage'
 
 const props = defineProps<{
   id: string
@@ -81,10 +82,8 @@ async function verifySvgId() {
   if (!floor) { svgVerifyResult.value = 'not-found'; return }
 
   try {
-    const basePath = floor.svgPath.startsWith('/') ? floor.svgPath.slice(1) : floor.svgPath
-    const res = await fetch(`${import.meta.env.BASE_URL}${basePath}`)
-    if (!res.ok) { svgVerifyResult.value = 'not-found'; return }
-    const text = await res.text()
+    const text = await loadFloorplanSvg(floor.id)
+    if (!text) { svgVerifyResult.value = 'not-found'; return }
     const parser = new DOMParser()
     const doc = parser.parseFromString(text, 'image/svg+xml')
     const el = doc.getElementById(unit.value.svgPathId)

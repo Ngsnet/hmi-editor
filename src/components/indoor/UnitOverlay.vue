@@ -7,11 +7,19 @@ const buildingStore = useBuildingStore()
 const svgContainer = ref<HTMLElement | null>(null)
 
 const statusColors: Record<string, string> = {
-  normal: 'rgba(34, 197, 94, 0.25)',
-  alert: 'rgba(239, 68, 68, 0.4)',
-  empty: 'rgba(156, 163, 175, 0.2)',
-  'no-data': 'rgba(251, 191, 36, 0.25)',
-  'unassigned': 'rgba(200, 200, 200, 0.15)',
+  normal: 'rgba(34, 197, 94, 0.45)',
+  alert: 'rgba(239, 68, 68, 0.55)',
+  empty: 'rgba(156, 163, 175, 0.35)',
+  'no-data': 'rgba(251, 191, 36, 0.4)',
+  'unassigned': 'rgba(200, 200, 200, 0.3)',
+}
+
+const statusStrokes: Record<string, string> = {
+  normal: '#16a34a',
+  alert: '#dc2626',
+  empty: '#6b7280',
+  'no-data': '#d97706',
+  'unassigned': '#9ca3af',
 }
 
 const cleanupHandlers: Array<() => void> = []
@@ -26,9 +34,9 @@ function applyUnitStyle(el: Element, unitId: string | null) {
   const htmlEl = el as HTMLElement
   htmlEl.style.fill = statusColors[status] ?? statusColors['no-data']
   htmlEl.style.cursor = 'pointer'
-  htmlEl.style.stroke = '#374151'
-  htmlEl.style.strokeWidth = '1.5px'
-  htmlEl.style.transition = 'fill 0.3s ease'
+  htmlEl.style.stroke = statusStrokes[status] ?? '#6b7280'
+  htmlEl.style.strokeWidth = '2px'
+  htmlEl.style.transition = 'fill 0.3s ease, stroke 0.3s ease'
 }
 
 function applyAllStyles(container?: HTMLElement) {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, shallowRef, computed, provide, onMounted, onUnmounted } from 'vue'
 import L from 'leaflet'
 import { useBuildingStore } from '@/stores/buildingStore'
 import { useDiagramStore } from '@/stores/diagramStore'
@@ -7,6 +7,7 @@ import FloorPlanLayer from './FloorPlanLayer.vue'
 import UnitOverlay from './UnitOverlay.vue'
 import UnitPanel from './UnitPanel.vue'
 import FloorSwitcher from './FloorSwitcher.vue'
+import GeoRefTool from './GeoRefTool.vue'
 
 const buildingStore = useBuildingStore()
 const diagramStore = useDiagramStore()
@@ -15,7 +16,12 @@ const mapEl = ref<HTMLDivElement | null>(null)
 const unitOverlayRef = ref<InstanceType<typeof UnitOverlay> | null>(null)
 const floorPlanRef = ref<InstanceType<typeof FloorPlanLayer> | null>(null)
 const showAdjust = ref(false)
+const showGeoRef = ref(false)
+const showHelp = ref(false)
+const mapRef = shallowRef<L.Map | null>(null)
 let map: L.Map | null = null
+
+provide('leafletMap', mapRef)
 
 const activeFloorPlan = computed(() =>
   buildingStore.building.floors.find(f => f.id === buildingStore.activeFloor)
@@ -63,6 +69,8 @@ onMounted(() => {
     maxZoom: 22,
   }).addTo(map)
 
+  mapRef.value = map
+
   // Save map position on move/zoom
   map.on('moveend', () => {
     if (!map) return
@@ -79,6 +87,7 @@ onUnmounted(() => {
   if (map) {
     map.remove()
     map = null
+    mapRef.value = null
   }
 })
 </script>
@@ -90,6 +99,13 @@ onUnmounted(() => {
       <FloorPlanLayer ref="floorPlanRef" @loaded="onFloorPlanLoaded" />
       <UnitOverlay ref="unitOverlayRef" />
       <FloorSwitcher />
+
+      <!-- Geo-reference tool -->
+      <GeoRefTool
+        v-if="showGeoRef"
+        :floor-plan-ref="floorPlanRef"
+        @done="showGeoRef = false"
+      />
 
       <!-- Floor label + controls -->
       <div class="floor-controls">
@@ -112,15 +128,29 @@ onUnmounted(() => {
           />
           <span class="ctrl-val">{{ Math.round(buildingStore.floorPlanOpacity * 100) }}%</span>
         </label>
+        <button class="adjust-toggle" :class="{ active: showGeoRef }" @click="showGeoRef = !showGeoRef" title="Geo-reference (2-bodové zarovnání s mapou)">
+          &#9906;
+        </button>
         <button class="adjust-toggle" :class="{ active: showAdjust }" @click="showAdjust = !showAdjust" title="Zarovnání půdorysu">
           &#9881;
+        </button>
+        <button class="adjust-toggle" :class="{ active: showHelp }" @click="showHelp = !showHelp" title="Nápověda / postup">
+          ?
         </button>
       </div>
 
       <!-- Adjust panel -->
       <div v-if="showAdjust" class="adjust-panel">
         <div class="adjust-title">Zarovnání půdorysu</div>
-        <label class="ctrl-row">
+
+        <!-- GeoRef status -->
+        <div v-if="buildingStore.hasGeoRef" class="georef-status">
+          <span class="georef-active">&#10003; Geo-reference aktivní</span>
+          <button class="reset-btn" @click="buildingStore.clearGeoRef()">Vymazat geo-ref</button>
+        </div>
+
+        <!-- Manual scale (only when no geoRef) -->
+        <label v-if="!buildingStore.hasGeoRef" class="ctrl-row">
           <span class="ctrl-label">Měřítko</span>
           <input
             type="range"
@@ -136,8 +166,10 @@ onUnmounted(() => {
             @input="buildingStore.floorPlanScale = Number(($event.target as HTMLInputElement).value)"
           />
         </label>
+
+        <!-- Fine-tune offset X -->
         <label class="ctrl-row">
-          <span class="ctrl-label">Posun X</span>
+          <span class="ctrl-label">{{ buildingStore.hasGeoRef ? 'Doladění X' : 'Posun X' }}</span>
           <input
             type="range"
             min="-500" max="500" step="1"
@@ -151,8 +183,10 @@ onUnmounted(() => {
             @input="buildingStore.floorPlanOffsetX = Number(($event.target as HTMLInputElement).value)"
           /> px
         </label>
+
+        <!-- Fine-tune offset Y -->
         <label class="ctrl-row">
-          <span class="ctrl-label">Posun Y</span>
+          <span class="ctrl-label">{{ buildingStore.hasGeoRef ? 'Doladění Y' : 'Posun Y' }}</span>
           <input
             type="range"
             min="-500" max="500" step="1"
@@ -166,8 +200,10 @@ onUnmounted(() => {
             @input="buildingStore.floorPlanOffsetY = Number(($event.target as HTMLInputElement).value)"
           /> px
         </label>
+
+        <!-- Fine-tune rotation -->
         <label class="ctrl-row">
-          <span class="ctrl-label">Rotace</span>
+          <span class="ctrl-label">{{ buildingStore.hasGeoRef ? 'Doladění rot.' : 'Rotace' }}</span>
           <input
             type="range"
             min="-180" max="180" step="0.5"
@@ -182,10 +218,52 @@ onUnmounted(() => {
             @input="buildingStore.floorPlanRotation = Number(($event.target as HTMLInputElement).value)"
           /> &deg;
         </label>
+
         <button class="reset-btn" @click="buildingStore.floorPlanScale = 1; buildingStore.floorPlanOffsetX = 0; buildingStore.floorPlanOffsetY = 0; buildingStore.floorPlanRotation = 0">
           Reset
         </button>
       </div>
+      <!-- Help panel -->
+      <div v-if="showHelp" class="help-panel">
+        <div class="help-header">
+          <span class="help-title">Postup nastavení indoor plánu</span>
+          <button class="help-close" @click="showHelp = false">&times;</button>
+        </div>
+        <ol class="help-steps">
+          <li>
+            <strong>Založte podlaží</strong>
+            <span>V Admin CMS vytvořte podlaží (floor) s ID a názvem.</span>
+          </li>
+          <li>
+            <strong>Nahrajte SVG půdorys</strong>
+            <span>V Admin &rarr; Půdorysy nahrajte SVG soubor pro dané podlaží.</span>
+          </li>
+          <li>
+            <strong>Kalibrujte měřítko</strong>
+            <span>V Admin &rarr; Půdorysy použijte tlačítko "Kalibrovat" &mdash; klikněte dva body se známou vzdáleností a zadejte metry.</span>
+          </li>
+          <li>
+            <strong>Zarovnejte s mapou</strong>
+            <span>Zde v indoor pohledu klikněte <strong>&#9906;</strong> (Geo-reference) &mdash; označte dva rohy budovy v půdorysu a na mapě. Systém automaticky vypočítá měřítko, rotaci a pozici.</span>
+          </li>
+          <li>
+            <strong>Dolaďte pozici</strong>
+            <span>Klikněte <strong>&#9881;</strong> a posuvníky jemně dolaďte posun a rotaci. Průhlednost půdorysu nastavte posuvníkem vlevo.</span>
+          </li>
+          <li>
+            <strong>Nakreslete jednotky</strong>
+            <span>V Admin &rarr; Půdorysy klikněte "Kreslit jednotku" a nakreslete polygony pro každou jednotku (obchod, kancelář...).</span>
+          </li>
+          <li>
+            <strong>Přiřaďte jednotky</strong>
+            <span>Klikněte na nakreslený segment a zvolte "Vytvořit novou jednotku" nebo přiřaďte existující. Nastavte nájemce, plochu a měřiče.</span>
+          </li>
+        </ol>
+        <div class="help-footer">
+          <span class="help-hint">Klávesy: kolečko myši = zoom, pravé tlačítko = přesun mapy</span>
+        </div>
+      </div>
+
       <UnitPanel
         v-if="buildingStore.selectedUnit"
         :unit="buildingStore.selectedUnit"
@@ -363,5 +441,127 @@ onUnmounted(() => {
 .reset-btn:hover {
   border-color: var(--accent, #2196F3);
   color: var(--text-primary, #eee);
+}
+
+.georef-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.georef-active {
+  font-size: 12px;
+  color: #48bb78;
+  font-weight: 600;
+}
+
+.help-panel {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 650;
+  background: var(--bg-primary, #1e1e1e);
+  border: 1px solid var(--border-color, #333);
+  border-radius: 8px;
+  padding: 0;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  width: 340px;
+  max-height: calc(100% - 80px);
+  overflow-y: auto;
+  user-select: none;
+}
+
+.help-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-color, #333);
+}
+
+.help-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent, #2196F3);
+}
+
+.help-close {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted, #999);
+  font-size: 18px;
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.help-close:hover {
+  background: var(--btn-hover, #333);
+  color: var(--text-primary, #eee);
+}
+
+.help-steps {
+  list-style: none;
+  counter-reset: help-step;
+  padding: 8px 14px;
+  margin: 0;
+}
+
+.help-steps li {
+  counter-increment: help-step;
+  position: relative;
+  padding: 8px 0 8px 32px;
+  border-bottom: 1px solid var(--border-light, #2a2a2a);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.help-steps li:last-child {
+  border-bottom: none;
+}
+
+.help-steps li::before {
+  content: counter(help-step);
+  position: absolute;
+  left: 0;
+  top: 8px;
+  width: 22px;
+  height: 22px;
+  background: var(--accent, #2196F3);
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.help-steps li strong {
+  font-size: 12px;
+  color: var(--text-primary, #eee);
+}
+
+.help-steps li span {
+  font-size: 11px;
+  color: var(--text-muted, #999);
+  line-height: 1.4;
+}
+
+.help-footer {
+  padding: 8px 14px;
+  border-top: 1px solid var(--border-color, #333);
+}
+
+.help-hint {
+  font-size: 10px;
+  color: var(--text-dim, #666);
 }
 </style>

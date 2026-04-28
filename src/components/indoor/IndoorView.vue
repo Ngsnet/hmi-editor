@@ -243,7 +243,7 @@ onUnmounted(() => {
               @input="setLayerOpacity(m.key, Number(($event.target as HTMLInputElement).value))"
               class="layer-opacity-slider"
             />
-            <span class="layer-opacity-val">{{ Math.round(layerOpacity[m.key] * 100) }}%</span>
+            <span class="layer-opacity-val">{{ Math.round((layerOpacity[m.key] ?? 1) * 100) }}%</span>
           </div>
         </div>
 

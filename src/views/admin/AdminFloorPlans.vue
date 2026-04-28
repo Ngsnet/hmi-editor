@@ -593,7 +593,7 @@ function getElementPoints(el: Element): Array<{ x: number; y: number }> {
     const pointsAttr = el.getAttribute('points') || ''
     return pointsAttr.trim().split(/\s+/).map(pair => {
       const [x, y] = pair.split(',').map(Number)
-      return { x, y }
+      return { x: x ?? NaN, y: y ?? NaN }
     }).filter(p => !isNaN(p.x) && !isNaN(p.y))
   }
   if (tag === 'rect') {
@@ -615,7 +615,7 @@ function getElementPoints(el: Element): Array<{ x: number; y: number }> {
     const regex = /([ML])\s*([\d.e+-]+)[,\s]+([\d.e+-]+)/gi
     let match
     while ((match = regex.exec(d)) !== null) {
-      pts.push({ x: +match[2], y: +match[3] })
+      pts.push({ x: +match[2]!, y: +match[3]! })
     }
     return pts
   }
@@ -713,7 +713,7 @@ function recomputePolygonArea() {
   let areaSum = 0
   for (let i = 0; i < pts.length; i++) {
     const j = (i + 1) % pts.length
-    areaSum += pts[i].x * pts[j].y - pts[j].x * pts[i].y
+    areaSum += pts[i]!.x * pts[j]!.y - pts[j]!.x * pts[i]!.y
   }
   const svgArea = Math.abs(areaSum) / 2
   const s = svgUnitsPerMeter.value
@@ -737,8 +737,8 @@ function renderEditHandles() {
 
   // Draw edges with midpoint handles
   for (let i = 0; i < editPoints.value.length; i++) {
-    const p = editPoints.value[i]
-    const next = editPoints.value[(i + 1) % editPoints.value.length]
+    const p = editPoints.value[i]!
+    const next = editPoints.value[(i + 1) % editPoints.value.length]!
 
     // Edge line
     const line = document.createElementNS('http://www.w3.org/2000/svg', 'line')
@@ -768,8 +768,8 @@ function renderEditHandles() {
     mid.addEventListener('mousedown', (e) => {
       e.preventDefault()
       e.stopPropagation()
-      const p1 = editPoints.value[midIdx]
-      const p2 = editPoints.value[(midIdx + 1) % editPoints.value.length]
+      const p1 = editPoints.value[midIdx]!
+      const p2 = editPoints.value[(midIdx + 1) % editPoints.value.length]!
       const newPt = { x: +(((p1.x + p2.x) / 2).toFixed(1)), y: +(((p1.y + p2.y) / 2).toFixed(1)) }
       editPoints.value.splice(midIdx + 1, 0, newPt)
       editDraggingIdx.value = midIdx + 1
@@ -781,7 +781,7 @@ function renderEditHandles() {
 
   // Vertex handles
   for (let i = 0; i < editPoints.value.length; i++) {
-    const p = editPoints.value[i]
+    const p = editPoints.value[i]!
     const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
     circle.setAttribute('cx', String(p.x))
     circle.setAttribute('cy', String(p.y))
@@ -828,8 +828,8 @@ function handleEditPointerDown(e: MouseEvent) {
   } else if (target.dataset.midIdx != null) {
     // Insert new vertex at midpoint
     const idx = +target.dataset.midIdx
-    const p1 = editPoints.value[idx]
-    const p2 = editPoints.value[(idx + 1) % editPoints.value.length]
+    const p1 = editPoints.value[idx]!
+    const p2 = editPoints.value[(idx + 1) % editPoints.value.length]!
     const newPt = { x: +(((p1.x + p2.x) / 2).toFixed(1)), y: +(((p1.y + p2.y) / 2).toFixed(1)) }
     editPoints.value.splice(idx + 1, 0, newPt)
     editDraggingIdx.value = idx + 1
@@ -965,7 +965,7 @@ function updateDrawPreview() {
 
   // Draw vertex markers
   for (let i = 0; i < drawPoints.value.length; i++) {
-    const p = drawPoints.value[i]
+    const p = drawPoints.value[i]!
     const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
     circle.setAttribute('cx', String(p.x))
     circle.setAttribute('cy', String(p.y))
@@ -1042,8 +1042,8 @@ async function finishDrawing() {
   let areaSum = 0
   for (let i = 0; i < pts.length; i++) {
     const j = (i + 1) % pts.length
-    areaSum += pts[i].x * pts[j].y
-    areaSum -= pts[j].x * pts[i].y
+    areaSum += pts[i]!.x * pts[j]!.y
+    areaSum -= pts[j]!.x * pts[i]!.y
   }
   const svgArea = Math.abs(areaSum) / 2
   const s = svgUnitsPerMeter.value
@@ -1146,13 +1146,13 @@ function moveFloor(floorId: string, direction: 'up' | 'down') {
   const sortedIdx = sorted.findIndex(f => f.id === floorId)
 
   if (direction === 'up' && sortedIdx > 0) {
-    const temp = sorted[sortedIdx].order
-    sorted[sortedIdx].order = sorted[sortedIdx - 1].order
-    sorted[sortedIdx - 1].order = temp
+    const temp = sorted[sortedIdx]!.order
+    sorted[sortedIdx]!.order = sorted[sortedIdx - 1]!.order
+    sorted[sortedIdx - 1]!.order = temp
   } else if (direction === 'down' && sortedIdx < sorted.length - 1) {
-    const temp = sorted[sortedIdx].order
-    sorted[sortedIdx].order = sorted[sortedIdx + 1].order
-    sorted[sortedIdx + 1].order = temp
+    const temp = sorted[sortedIdx]!.order
+    sorted[sortedIdx]!.order = sorted[sortedIdx + 1]!.order
+    sorted[sortedIdx + 1]!.order = temp
   }
 }
 

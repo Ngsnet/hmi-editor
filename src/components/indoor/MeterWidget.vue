@@ -47,7 +47,7 @@ watch(currentValue, (val) => {
 const trend = computed(() => {
   const h = history.value
   if (h.length < 2) return 'stable'
-  const diff = h[h.length - 1] - h[h.length - 2]
+  const diff = h[h.length - 1]! - h[h.length - 2]!
   if (diff > 0.05) return 'up'
   if (diff < -0.05) return 'down'
   return 'stable'

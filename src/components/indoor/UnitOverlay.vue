@@ -8,6 +8,43 @@ const cemStore = useCemDataStore()
 
 const svgContainer = ref<HTMLElement | null>(null)
 
+function truncate(s: string, max: number): string {
+  if (!s) return ''
+  return s.length <= max ? s : s.slice(0, max - 1) + '…'
+}
+
+function parseColor(c: string): { r: number; g: number; b: number } | null {
+  if (!c) return null
+  const t = c.trim()
+  let m = t.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)
+  if (m) {
+    let hex = m[1]!
+    if (hex.length === 3) hex = hex.split('').map(ch => ch + ch).join('')
+    return {
+      r: parseInt(hex.slice(0, 2), 16),
+      g: parseInt(hex.slice(2, 4), 16),
+      b: parseInt(hex.slice(4, 6), 16),
+    }
+  }
+  m = t.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i)
+  if (m) return { r: +m[1]!, g: +m[2]!, b: +m[3]! }
+  return null
+}
+
+/** Lighten color when its relative luminance is too low for contrast on the dark badge bg. */
+function ensureContrastOnDark(color: string): string {
+  const rgb = parseColor(color)
+  if (!rgb) return '#e5e7eb'
+  const lum = (0.2126 * rgb.r + 0.7152 * rgb.g + 0.0722 * rgb.b) / 255
+  if (lum >= 0.55) return color
+  // Mix with white — stronger mix the darker the source.
+  const mix = lum < 0.2 ? 0.7 : lum < 0.4 ? 0.55 : 0.4
+  const r = Math.round(rgb.r + (255 - rgb.r) * mix)
+  const g = Math.round(rgb.g + (255 - rgb.g) * mix)
+  const b = Math.round(rgb.b + (255 - rgb.b) * mix)
+  return `rgb(${r},${g},${b})`
+}
+
 const statusColors: Record<string, string> = {
   normal: 'rgba(34, 197, 94, 0.45)',
   alert: 'rgba(239, 68, 68, 0.55)',
@@ -38,7 +75,7 @@ function cleanupAll() {
 function applyUnitStyle(el: Element, unitId: string | null) {
   const status = unitId ? buildingStore.getUnitStatus(unitId) : 'unassigned'
   const htmlEl = el as HTMLElement
-  htmlEl.style.fill = statusColors[status] ?? statusColors['no-data']
+  htmlEl.style.fill = statusColors[status] ?? statusColors['no-data']!
   htmlEl.style.cursor = 'pointer'
   htmlEl.style.stroke = statusStrokes[status] ?? '#6b7280'
   htmlEl.style.strokeWidth = '2px'
@@ -119,6 +156,15 @@ function createSparklinePath(values: number[], w: number, h: number): string {
   }).join(' ')
 }
 
+function findCounterAndMeter(varId: number): { counter: import('@/types/cem').CemCounter; meter: import('@/types/cem').CemMeter | undefined } | null {
+  for (const m of cemStore.meters) {
+    const cs = cemStore.getCountersForMeter(m.id)
+    const found = cs.find(c => c.id === varId)
+    if (found) return { counter: found, meter: m }
+  }
+  return null
+}
+
 function createCounterBadge(
   svgRoot: SVGSVGElement,
   pos: { x: number; y: number },
@@ -129,87 +175,130 @@ function createCounterBadge(
   unitId: string,
   varId: number,
   chartMode: 'trend' | 'consumption',
+  decimals: number,
 ) {
-  const badgeW = 78
+  // Lookup meter info for richer card content
+  const info = findCounterAndMeter(varId)
+  const counterTypeName = truncate(info?.counter.typeName || `Veličina ${varId}`, 22)
+  const meterDescRaw = info?.meter?.description || info?.meter?.serial || (info?.meter ? `Měřidlo #${info.meter.id}` : '')
+  const meterDesc = truncate(meterDescRaw, 28)
+
+  const badgeW = 130
   const cached = sparklineCache.get(varId)
   const sparklineData = cached ? (chartMode === 'consumption' ? cached.consumption : cached.trend) : undefined
   const hasSparkline = sparklineData && sparklineData.length > 1
-  const sparkH = 14
-  const badgeH = 16 + sparkH + 2  // always include sparkline area
+
+  // Layout (group origin = vertical center of badge)
+  const bgY = -10
+  const bgH = 56
+  const headerY = -1     // baseline for type name (top row)
+  const descY = 9        // baseline for meter desc
+  const valueY = 27      // baseline for big value
+  const sparkTop = 32
+  const sparkH = 12
 
   const g = document.createElementNS(NS, 'g')
   g.setAttribute('class', BADGE_CLASS)
   g.setAttribute('data-var-id', String(varId))
   g.setAttribute('transform', `translate(${pos.x}, ${pos.y}) rotate(${rotation})`)
 
-  // Background
+  // Background — near-black, ~75% opacity
   const bg = document.createElementNS(NS, 'rect')
   bg.setAttribute('x', String(-badgeW / 2))
-  bg.setAttribute('y', String(-8))
+  bg.setAttribute('y', String(bgY))
   bg.setAttribute('width', String(badgeW))
-  bg.setAttribute('height', String(badgeH))
-  bg.setAttribute('rx', '3')
-  bg.setAttribute('fill', 'rgba(255,253,245,0.85)')
-  bg.setAttribute('stroke', 'rgba(180,170,150,0.6)')
-  bg.setAttribute('stroke-width', '0.8')
+  bg.setAttribute('height', String(bgH))
+  bg.setAttribute('rx', '6')
+  bg.setAttribute('fill', 'rgba(15,18,28,0.75)')
+  bg.setAttribute('stroke', 'rgba(255,255,255,0.10)')
+  bg.setAttribute('stroke-width', '0.6')
   bg.setAttribute('cursor', 'grab')
   bg.setAttribute('pointer-events', 'all')
-  // Tooltip with rotation hint
-  const totalRot = floorTotalRotation
-  const compensate = Math.abs(totalRot) > 0.5 ? `Pro vodorovný text: rotace ${(-totalRot).toFixed(1)}°` : 'Text je vodorovný'
-  const title = document.createElementNS(NS, 'title')
-  title.textContent = `Drag = posun, Ctrl+drag = rotace, Ctrl+Shift = 90° snap\nShift+click = vodorovný text\nRotace půdorysu: ${totalRot.toFixed(1)}°\nAktuální rotace: ${rotation.toFixed(1)}°\nDouble-click = graf`
-  bg.appendChild(title)
   g.appendChild(bg)
 
-  // Color dot
-  const dot = document.createElementNS(NS, 'circle')
-  dot.setAttribute('cx', String(-badgeW / 2 + 8))
-  dot.setAttribute('cy', '0')
-  dot.setAttribute('r', '3')
-  dot.setAttribute('fill', color)
-  dot.setAttribute('opacity', String(opacity))
-  dot.setAttribute('pointer-events', 'none')
-  g.appendChild(dot)
+  // Color accent strip on left (rounded so it doesn't poke out of bg corners)
+  const accent = document.createElementNS(NS, 'rect')
+  accent.setAttribute('x', String(-badgeW / 2 + 3))
+  accent.setAttribute('y', String(bgY + 4))
+  accent.setAttribute('width', '2.5')
+  accent.setAttribute('height', String(bgH - 8))
+  accent.setAttribute('rx', '1.25')
+  accent.setAttribute('fill', color)
+  accent.setAttribute('opacity', String(opacity))
+  accent.setAttribute('pointer-events', 'none')
+  g.appendChild(accent)
 
-  // Value text
+  // Counter type (header)
+  const typeT = document.createElementNS(NS, 'text')
+  typeT.setAttribute('x', String(-badgeW / 2 + 11))
+  typeT.setAttribute('y', String(headerY))
+  typeT.setAttribute('font-size', '8.5')
+  typeT.setAttribute('font-family', 'system-ui, -apple-system, sans-serif')
+  typeT.setAttribute('font-weight', '600')
+  typeT.setAttribute('fill', '#f3f4f6')
+  typeT.setAttribute('opacity', String(opacity * 0.95))
+  typeT.setAttribute('pointer-events', 'none')
+  typeT.textContent = counterTypeName
+  g.appendChild(typeT)
+
+  // Meter description (subtitle)
+  const descT = document.createElementNS(NS, 'text')
+  descT.setAttribute('x', String(-badgeW / 2 + 11))
+  descT.setAttribute('y', String(descY))
+  descT.setAttribute('font-size', '6.5')
+  descT.setAttribute('font-family', 'system-ui, -apple-system, sans-serif')
+  descT.setAttribute('fill', '#9ca3af')
+  descT.setAttribute('opacity', String(opacity * 0.85))
+  descT.setAttribute('pointer-events', 'none')
+  descT.textContent = meterDesc
+  g.appendChild(descT)
+
+  // Big semi-transparent value
   const label = document.createElementNS(NS, 'text')
-  label.setAttribute('x', String(-badgeW / 2 + 16))
-  label.setAttribute('y', '4')
-  label.setAttribute('fill', '#1a1a1a')
-  label.setAttribute('opacity', String(opacity))
-  label.setAttribute('font-size', '10')
+  label.setAttribute('x', String(badgeW / 2 - 6))
+  label.setAttribute('y', String(valueY))
+  label.setAttribute('text-anchor', 'end')
+  label.setAttribute('fill', '#ffffff')
+  label.setAttribute('opacity', String(opacity * 0.55))
+  label.setAttribute('font-size', '14')
+  label.setAttribute('font-weight', '700')
   label.setAttribute('font-family', 'monospace')
   label.setAttribute('pointer-events', 'none')
   label.textContent = text
   g.appendChild(label)
 
-  // Sparkline area
+  // Sparkline area — stroke uses a contrast-boosted variant of counter color
+  const sparkLeft = -badgeW / 2 + 11
+  const sparkRight = badgeW / 2 - 6
+  const sparkSpan = sparkRight - sparkLeft
+  const sparkColor = ensureContrastOnDark(color)
   if (hasSparkline) {
     const sparkPath = document.createElementNS(NS, 'polyline')
+    const min = Math.min(...sparklineData)
+    const max = Math.max(...sparklineData)
+    const range = max - min || 1
     const pts = sparklineData.map((v, i) => {
-      const min = Math.min(...sparklineData)
-      const max = Math.max(...sparklineData)
-      const range = max - min || 1
-      const x = (i / (sparklineData.length - 1)) * (badgeW - 8) - (badgeW - 8) / 2
-      const y = 8 + sparkH - ((v - min) / range) * (sparkH - 2) - 1
+      const x = sparkLeft + (i / (sparklineData.length - 1)) * sparkSpan
+      const y = sparkTop + sparkH - ((v - min) / range) * (sparkH - 2) - 1
       return `${x.toFixed(1)},${y.toFixed(1)}`
     }).join(' ')
     sparkPath.setAttribute('points', pts)
     sparkPath.setAttribute('fill', 'none')
-    sparkPath.setAttribute('stroke', color)
-    sparkPath.setAttribute('stroke-width', '1')
-    sparkPath.setAttribute('opacity', String(opacity * 0.8))
+    sparkPath.setAttribute('stroke', sparkColor)
+    sparkPath.setAttribute('stroke-width', '1.3')
+    sparkPath.setAttribute('stroke-linejoin', 'round')
+    sparkPath.setAttribute('stroke-linecap', 'round')
+    sparkPath.setAttribute('opacity', String(opacity * 0.95))
     sparkPath.setAttribute('pointer-events', 'none')
     g.appendChild(sparkPath)
   } else {
     // No data — dashed baseline
     const noData = document.createElementNS(NS, 'line')
-    noData.setAttribute('x1', String(-(badgeW - 8) / 2))
-    noData.setAttribute('y1', String(8 + sparkH / 2))
-    noData.setAttribute('x2', String((badgeW - 8) / 2))
-    noData.setAttribute('y2', String(8 + sparkH / 2))
-    noData.setAttribute('stroke', 'rgba(150,150,150,0.4)')
+    noData.setAttribute('x1', String(sparkLeft))
+    noData.setAttribute('y1', String(sparkTop + sparkH / 2))
+    noData.setAttribute('x2', String(sparkRight))
+    noData.setAttribute('y2', String(sparkTop + sparkH / 2))
+    noData.setAttribute('stroke', 'rgba(255,255,255,0.25)')
     noData.setAttribute('stroke-width', '0.8')
     noData.setAttribute('stroke-dasharray', '3 2')
     noData.setAttribute('pointer-events', 'none')
@@ -273,6 +362,18 @@ function createCounterBadge(
     }
   }
 
+  function ensureAssignment(unit: Unit) {
+    if (!unit.counterLayers) unit.counterLayers = []
+    let a = unit.counterLayers.find(x => x.varId === varId)
+    if (!a) {
+      const ctr = findCounterAndMeter(varId)?.counter
+      const layer: MediaLayer = ctr ? cemService.detectMediaLayer(ctr) : 'other'
+      a = { varId, layer, auto: true }
+      unit.counterLayers.push(a)
+    }
+    return a
+  }
+
   function onEnd() {
     dragging = false
     rotating = false
@@ -280,16 +381,12 @@ function createCounterBadge(
     document.removeEventListener('mousemove', onMove)
     document.removeEventListener('mouseup', onEnd)
 
-    // Persist position + rotation
+    // Persist position + rotation (creates assignment if missing)
     const unit = buildingStore.building.units.find(u => u.id === unitId)
-    if (unit) {
-      if (!unit.counterLayers) unit.counterLayers = []
-      const assignment = unit.counterLayers.find(a => a.varId === varId)
-      if (assignment) {
-        assignment.pos = { x: pos.x, y: pos.y }
-        assignment.rotation = Math.round(rotation * 10) / 10
-      }
-    }
+    if (!unit) return
+    const a = ensureAssignment(unit)
+    a.pos = { x: pos.x, y: pos.y }
+    a.rotation = Math.round(rotation * 10) / 10
   }
 
   // Shift+click = auto-level (compensate floor rotation)
@@ -301,10 +398,9 @@ function createCounterBadge(
     g.setAttribute('transform', `translate(${pos.x}, ${pos.y}) rotate(${rotation})`)
     // Persist
     const u = buildingStore.building.units.find(u => u.id === unitId)
-    if (u) {
-      const a = u.counterLayers?.find(a => a.varId === varId)
-      if (a) a.rotation = Math.round(rotation * 10) / 10
-    }
+    if (!u) return
+    const a = ensureAssignment(u)
+    a.rotation = Math.round(rotation * 10) / 10
   }
 
   bg.addEventListener('mousedown', onStart)
@@ -405,12 +501,12 @@ function applyMeterBadges(root: HTMLElement) {
     const centroid = getElementCentroid(el)
     if (!centroid) continue
 
-    // Each counter gets its own badge
+    // Each counter gets its own badge — match UnitPanel: render every counter
+    // under bound objects, regardless of isService flag.
     let offsetIndex = 0
     for (const objId of unit.cemObjectIds) {
       const counters = cemStore.getCountersForObject(objId)
       for (const c of counters) {
-        if (c.isService) continue
         if (!matchesMediaFilter(unit, c.id, c)) continue
 
         const layer = getCounterLayer(unit, c.id, c)
@@ -422,13 +518,13 @@ function applyMeterBadges(root: HTMLElement) {
         const assignment = unit.counterLayers?.find(a => a.varId === c.id)
         const pos = assignment?.pos
           ? { x: assignment.pos.x, y: assignment.pos.y }
-          : { x: centroid.x, y: centroid.y + 12 + offsetIndex * 20 }
+          : { x: centroid.x, y: centroid.y + 30 + offsetIndex * 60 }
         const rotation = assignment?.rotation ?? 0
 
         const decimals = assignment?.decimals ?? 1
         const val = c.lastValue != null ? `${c.lastValue.toFixed(decimals)} ${c.unit}` : '--'
         const mode = getDefaultChart(unit, c.id)
-        createCounterBadge(svgRoot, pos, rotation, c.color, val, opacity, unit.id, c.id, mode)
+        createCounterBadge(svgRoot, pos, rotation, c.color, val, opacity, unit.id, c.id, mode, decimals)
         offsetIndex++
       }
     }
